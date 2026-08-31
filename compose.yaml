@@ -1,0 +1,31 @@
+services:
+  dsh:
+    build: .
+    image: my-dsh-container:dsh
+    container_name: dsh
+    # dsh binds 127.0.0.1 inside the container and refuses --host 0.0.0.0,
+    # so it shares the host network to be reachable at http://localhost:3080.
+    # Trade-off: the container can also reach other services on the host's
+    # loopback. If you want bridge isolation instead, bind a static IP and
+    # pass `dsh web --host <container-ip>`.
+    network_mode: host
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    working_dir: /workspace
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DSH_TELEMETRY_MODE=DISABLED
+    volumes:
+      # Workspace. Mount each project read-write; add one line per project and
+      # `docker compose up -d --force-recreate` to pick it up in the Web UI.
+      - /media/dan/data/dev/my-dsh-container:/workspace
+      # Persistent dsh state (profiles, credentials, caches).
+      - dsh-home:/dsh-home
+
+volumes:
+  dsh-home:
