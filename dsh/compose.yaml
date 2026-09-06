@@ -23,7 +23,8 @@ services:
     volumes:
       # Workspace. Mount each project read-write; add one line per project and
       # `docker compose up -d --force-recreate` to pick it up in the Web UI.
-      - /media/dan/data/dev/my-dsh-container:/workspace
+      - /media/dan/data/dev/harnesses:/workspace/harnesses
+      - /media/dan/data/dev/xr-super:/workspace/xr-super
       # Persistent dsh state (profiles, credentials, caches).
       - dsh-home:/dsh-home
 
