@@ -1,0 +1,12 @@
+# Docker build context = the node project only. Everything else in this folder
+# (compose, specs, env) must not end up in the image.
+.env
+.git
+.gitignore
+node_modules
+Dockerfile
+.dockerignore
+compose.yaml
+compose.ro.yaml
+README.md
+specs

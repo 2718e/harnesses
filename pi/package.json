@@ -1,0 +1,16 @@
+{
+  "name": "my-pi-container",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node project for the Pi harness container: pins the Pi coding agent and its plugins so everything installs via `npm install` during the Docker build.",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "pi": "pi"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "pi-web-access": "0.28.0"
+  }
+}

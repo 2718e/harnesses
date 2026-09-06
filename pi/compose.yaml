@@ -1,14 +1,22 @@
+# Pi (interactive coding agent) in a container.
+#
+# Unlike dsh, Pi is a terminal agent: it binds no ports, so no host networking
+# is needed. The container idles until you exec into it, so nothing starts on
+# its own — open a plain shell, or jump straight into the harness:
+#   docker compose up -d --build
+#   docker compose exec -it pi bash          # plain shell, start `pi` yourself
+#   docker compose exec -it pi pi            # interactive harness session
+#   docker compose exec pi pi -p "..."       # one-off, non-interactive
+
 services:
-  dsh:
+  pi:
     build: .
-    image: my-dsh-container:dsh
-    container_name: dsh
-    # dsh binds 127.0.0.1 inside the container and refuses --host 0.0.0.0,
-    # so it shares the host network to be reachable at http://localhost:3080.
-    # Trade-off: the container can also reach other services on the host's
-    # loopback. If you want bridge isolation instead, bind a static IP and
-    # pass `dsh web --host <container-ip>`.
-    network_mode: host
+    image: my-pi-container:pi
+    container_name: pi
+    # Idle main process: the harness and shells are started on demand with
+    # `docker compose exec` (exec allocates its own TTY), so the service itself
+    # neither needs a TTY nor auto-starts Pi.
+    command: ["sleep", "infinity"]
     read_only: true
     tmpfs:
       - /tmp
@@ -18,15 +26,24 @@ services:
       - no-new-privileges:true
     working_dir: /workspace
     environment:
+      # Model provider: Pi reads DEEPSEEK_API_KEY automatically (provider "deepseek").
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
-      - DSH_TELEMETRY_MODE=DISABLED
+      - PI_SKIP_VERSION_CHECK=1
+      - PI_TELEMETRY=0
+      - TERM=xterm-256color
     volumes:
       # Workspace. Mount each project read-write; add one line per project and
-      # `docker compose up -d --force-recreate` to pick it up in the Web UI.
+      # `docker compose up -d --force-recreate` to pick it up in a session.
       - /media/dan/data/dev/harnesses:/workspace/harnesses
       - /media/dan/data/dev/xr-super:/workspace/xr-super
-      # Persistent dsh state (profiles, credentials, caches).
-      - dsh-home:/dsh-home
+      # Persistent Pi state (settings, sessions, installed packages), seeded
+      # from image content on first start.
+      - pi-home:/pi-home
+      # Read-only data volumes (agent may read the data but cannot modify it).
+      # Uncomment and adjust the source path, or use the ready-made override
+      # file that keeps them out of the default stack:
+      #   docker compose -f compose.yaml -f compose.ro.yaml up -d
+      # - /media/dan/data/dev/datasets/test:/workspace/datasets:ro
 
 volumes:
-  dsh-home:
+  pi-home:

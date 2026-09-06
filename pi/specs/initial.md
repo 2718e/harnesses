@@ -4,7 +4,9 @@ Set up for use of Pi harness
 
 ## Things that should already be in place
 
-Have initialised this project by copying a setup for deepseek harness and removed some things specific to that harness. 
+Have initialised this project by copying a setup for deepseek harness and removed some things specific to that harness.
+
+For reference, this project is in a `pi` folder and the existing deepseek harness setup is in the `dsh` folder
 
 - dockerfile and compose file to only mount and give agent access to specific folders
 - .gitignored .env file for API Keys 
