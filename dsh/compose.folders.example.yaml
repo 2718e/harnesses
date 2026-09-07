@@ -1,0 +1,10 @@
+
+services:
+  dsh:
+    volumes:
+      # Note: non absolute paths are relative to where the parent compose file is
+      - ..:/workspace/harnesses
+      # Dev projects, read-write.
+      # - /absolute-path-to-project-folder:/workspace/project-folder
+      # Data the agent may read but not modify (uncomment to enable):
+      # - resource-or-data-dir:/workspace/datasets:ro

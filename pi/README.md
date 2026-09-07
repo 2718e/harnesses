@@ -97,30 +97,14 @@ volumes:
 docker compose up -d --force-recreate
 ```
 
-## Read-only data volumes
+## Adding a project or resource folder
 
-For data-analysis work you typically want the code writable but the dataset
-read-only, so the agent can read it but never modify or delete it. Mounts
-suffixed `:ro` are read-only inside the container regardless of host
-permissions.
+Projects are mounted individually so the container only sees what you give it.
 
-The default stack has no data mounts. Enable them with the ready-made override
-file (keeps them out of the default `up`):
+The main compose file includes a gitignored `compose.folders.yaml` which can be used to
+add project folders, resource folders, etc/
 
-```sh
-# put DATASETS_DIR in pi/.env (see .env.example) or export it:
-export DATASETS_DIR=/media/dan/data/dev/datasets/test
-docker compose -f compose.yaml -f compose.ro.yaml up -d
-```
-
-This mounts the folder at `/workspace/datasets` (read-only). Add more by
-copying the `volumes` line in `compose.ro.yaml`, or edit the commented example
-in `compose.yaml` directly:
-
-```yaml
-volumes:
-  - /media/dan/data/dev/datasets/test:/workspace/datasets:ro
-```
+`compose.folders.example.yaml` gives an example of adding this repository itself.
 
 Changing mounts requires a container recreate (`up -d --force-recreate`).
 

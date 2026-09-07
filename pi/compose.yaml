@@ -7,6 +7,8 @@
 #   docker compose exec -it pi bash          # plain shell, start `pi` yourself
 #   docker compose exec -it pi pi            # interactive harness session
 #   docker compose exec pi pi -p "..."       # one-off, non-interactive
+include:
+  - path: ./compose.folders.yaml
 
 services:
   pi:
@@ -32,18 +34,9 @@ services:
       - PI_TELEMETRY=0
       - TERM=xterm-256color
     volumes:
-      # Workspace. Mount each project read-write; add one line per project and
-      # `docker compose up -d --force-recreate` to pick it up in a session.
-      - /media/dan/data/dev/harnesses:/workspace/harnesses
-      - /media/dan/data/dev/xr-super:/workspace/xr-super
       # Persistent Pi state (settings, sessions, installed packages), seeded
       # from image content on first start.
       - pi-home:/pi-home
-      # Read-only data volumes (agent may read the data but cannot modify it).
-      # Uncomment and adjust the source path, or use the ready-made override
-      # file that keeps them out of the default stack:
-      #   docker compose -f compose.yaml -f compose.ro.yaml up -d
-      # - /media/dan/data/dev/datasets/test:/workspace/datasets:ro
 
 volumes:
   pi-home:

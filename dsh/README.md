@@ -17,13 +17,11 @@ API key, then **Choose workspace** and select `/workspace` (the mounted project)
 ## Adding a project
 
 Projects are mounted individually so the container only sees what you give it.
-Add a line under `volumes` in `compose.yaml` and recreate the container:
 
-```yaml
-volumes:
-  - path-to-this-project:/workspace
-  - this-projects-parent-folder/individual-project:/individual-project
-```
+The main compose file includes a gitignored `compose.folders.yaml` which can be used to
+add project folders, resource folders, etc/
+
+`compose.folders.example.yaml` gives an example of adding this repository itself.
 
 ```sh
 docker compose up -d --force-recreate
