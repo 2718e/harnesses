@@ -56,13 +56,25 @@ Notes:
   container (same image/config, removed on exit): `docker compose run --rm -it
   pi bash`.
 
-## Web search
+## Extensions
+
+Extensions are declared as ordinary npm dependencies in `package.json` (so
+`npm ci` puts them in `/app/node_modules` during the build) **and** registered
+in the seeded global settings file (`home/.pi/agent/settings.json`, live at
+`/pi-home/.pi/agent/settings.json`) by their `/app/node_modules/<name>` path.
+Pi only loads packages that are listed there — it does not auto-discover
+extensions from node_modules — and a path entry needs no network access at
+session start (unlike `pi install npm:...`, which downloads a second copy into
+`/pi-home/.pi/agent/npm` and is versioned independently of the image). After
+adding a dependency to `package.json`, rebuild the image (`docker compose
+build`) so the new `/app/node_modules/<name>` exists; a plain
+`--force-recreate` only swaps the container, not the image.
+
+### Web search
 
 Web search is provided by the [`pi-web-access`](https://github.com/nicobailon/pi-web-access)
 extension, which registers a `web_search` tool (plus URL fetching, GitHub clone,
-PDF/YouTube extraction, …). It is declared as a dependency in `package.json`
-and registered for every session through the seeded global settings file
-(`home/.pi/agent/settings.json`, live at `/pi-home/.pi/agent/settings.json`).
+PDF/YouTube extraction, …).
 
 Out of the box it works keyless (it falls back through its provider chain);
 results improve when you configure a provider key. Add keys inside the
@@ -82,6 +94,16 @@ Then restart the session (`/reload` in pi, or exit and start a new one). See the
 extension's README for the full list of supported providers and keys. Note the
 extension runs arbitrary code and can make network requests — this is why Pi
 runs in this container.
+
+### Git worktrees
+
+Git worktrees (`/worktree`, `/worktree-exit`, `/worktree-list`,
+`/worktree-remove`) are provided by the
+[`pi-worktree-extension`](https://github.com/AjayPoshak/pi-worktree-extension)
+package. Note: it only works once the current session has been persisted to
+disk, which pi does after the first completed assistant turn — send one normal
+message and wait for the reply before running `/worktree` in a brand-new
+session.
 
 ## Adding a project (read-write)
 
