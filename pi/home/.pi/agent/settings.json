@@ -1,3 +1,10 @@
 {
-  "packages": ["/app/node_modules/pi-web-access"]
+  "packages": [
+    "/app/node_modules/pi-web-access",
+    "/app/node_modules/pi-worktree-extension"
+  ],
+  "defaultProvider": "deepseek",
+  "defaultModel": "deepseek-v4-flash",
+  "lastChangelogVersion": "0.85.1",
+  "theme": "dark"
 }

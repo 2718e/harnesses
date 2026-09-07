@@ -138,9 +138,14 @@ Changing mounts requires a container recreate (`up -d --force-recreate`).
   regenerate the lockfile (`npm install --package-lock-only`), and
   `docker compose build`. Nothing harness-specific is installed directly in the
   Dockerfile.
-- **State lives on the `pi-home` volume.** Settings, sessions, and packages
-  installed with `pi install` persist across recreates (mapped to `/pi-home`,
-  seeded from the image on first start).
+- **State lives on the `pi-home` volume.** Sessions and packages installed
+  with `pi install` persist across recreates (mapped to `/pi-home`, seeded
+  from the image on first start). Global settings are the exception:
+  `home/.pi/agent/settings.json` is bind-mounted over
+  `/pi-home/.pi/agent/settings.json`, so the repo copy is authoritative —
+  edit it, then `docker compose up -d --force-recreate` and start a new `pi`
+  session. Pi writes runtime keys (`theme`, changelog version, …) back into
+  that repo file, so expect it to show diffs over time.
 - **Security posture.** Non-root user (uid 1000, matching the host), read-only
   rootfs, tmpfs `/tmp`, all capabilities dropped, `no-new-privileges`, only
   explicitly mounted folders — plus `:ro` mounts for data. Pi itself is

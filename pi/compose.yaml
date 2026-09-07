@@ -34,9 +34,16 @@ services:
       - PI_TELEMETRY=0
       - TERM=xterm-256color
     volumes:
-      # Persistent Pi state (settings, sessions, installed packages), seeded
-      # from image content on first start.
+      # Persistent Pi state (sessions, installed packages, auth, trust),
+      # seeded from image content on first start.
       - pi-home:/pi-home
+      # Global settings are repo-managed: named volumes are only seeded from
+      # the image ONCE (first start), so rebuilds/recreates never refresh the
+      # copy inside pi-home. Binding the repo file over it makes edits in
+      # home/.pi/agent/settings.json apply on the next recreate + new pi
+      # session. Pi writes runtime keys (theme, lastChangelogVersion, ...)
+      # back into this file, so it accumulates diffs over time.
+      - ./home/.pi/agent/settings.json:/pi-home/.pi/agent/settings.json
 
 volumes:
   pi-home:
