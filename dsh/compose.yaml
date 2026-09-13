@@ -26,7 +26,8 @@ services:
     volumes:
       - dsh-home:/dsh-home
       # Harness-level skills are bind-mounted over dsh's user skill root
-      - ./harness-level-skills/skills:/dsh-home/skills:ro
+      - ./global-agent-config/skills:/dsh-home/skills:ro
+      - ./global-agent-config/AGENTS.md:/dsh-home/AGENTS.md:ro
 
 volumes:
   dsh-home:
