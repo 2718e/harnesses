@@ -29,6 +29,16 @@ docker compose up -d --force-recreate
 
 Then pick the new mount path in **Choose workspace**.
 
+## Skills
+
+Harness-level skill definitions live defined at
+`harness-level-skills/skills/<name>/SKILL.md` and are bind-mounted read-only into
+dsh's user skill root:
+
+```yaml
+- ./harness-level-skills/skills:/dsh-home/skills:ro
+```
+
 ## Notes
 
 - **venvs are container-scoped.** A virtualenv the agent creates inside a project

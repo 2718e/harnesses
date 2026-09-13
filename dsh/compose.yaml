@@ -25,6 +25,8 @@ services:
       - DSH_TELEMETRY_MODE=DISABLED
     volumes:
       - dsh-home:/dsh-home
+      # Harness-level skills are bind-mounted over dsh's user skill root
+      - ./harness-level-skills/skills:/dsh-home/skills:ro
 
 volumes:
   dsh-home:
