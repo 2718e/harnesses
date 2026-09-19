@@ -1,0 +1,15 @@
+{
+  "name": "my-dsh-container",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node project for the dsh harness container: pins DeepSeek Harness and installs it via pnpm during the Docker build.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dsh": "dsh"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.5-rc.2"
+  }
+}

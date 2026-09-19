@@ -7,12 +7,26 @@ in a container, as recommended by the project's
 ## Quick start
 
 ```sh
-cp .env.example .env        # add your DEEPSEEK_API_KEY
-docker compose up -d --build
+cp .env.example .env 
+```
+Add the DEEPSEEK_API_KEY to .env
+
+Then, with [`just`](https://just.systems) installed on the host:
+
+```sh
+just start    # build if needed, start, and print the URL with the token
 ```
 
-Open http://localhost:3080 in a browser. In **Settings → Models** add your DeepSeek
-API key, then **Choose workspace** and select `/workspace` (the mounted project).
+Run `just` on its own to list all recipes (`url`, `recreate`, `logs`, `shell`,
+`stop`, `down`, ...). Open the printed URL in the browser.
+Note that the workspace is the level above the default folder
+
+The underlying commands still work if you prefer not to use `just`:
+
+```sh
+docker compose up -d --build
+docker compose logs # to see the url with the token
+```
 
 ## Adding a project
 
@@ -24,7 +38,7 @@ add project folders, resource folders, etc/
 `compose.folders.example.yaml` gives an example of adding this repository itself.
 
 ```sh
-docker compose up -d --force-recreate
+just recreate
 ```
 
 Then pick the new mount path in **Choose workspace**.
@@ -41,17 +55,24 @@ dsh's user skill root:
 
 ## Notes
 
-- **venvs are container-scoped.** A virtualenv the agent creates inside a project
-  is bound to the container's Python at `/usr/local/bin`. It works for the agent,
-  but that project's Python tooling on the host won't reuse it — recreate a venv
-  there if you work on the project directly on the host.
+- **Python environments (uv).** `uv` is installed in the image and configured
+  with `UV_PROJECT_ENVIRONMENT=.venv-agent-container`, so each project gets its
+  environment in a project-local `.venv-agent-container/` directory. The
+  container never reads or overwrites the host's `.venv`, and uv no longer
+  deletes a `.venv` that was built for the host. `.venv-agent-container` is still
+  bound to the container's Python, so recreate one on the host if you work on the
+  project directly there. Agent-facing rules live in `global-agent-config/AGENTS.md`.
 - **Networking.** `dsh` only binds `127.0.0.1` and refuses `--host 0.0.0.0`, so the
   container uses host networking to be reachable at `localhost:3080`. That means
   the container can also reach other host services on loopback. For stronger
   isolation, bind a static container IP and run `dsh web --host <ip>` instead.
 - **Telemetry is disabled** (`DSH_TELEMETRY_MODE=DISABLED`).
-- **Updating dsh.** It's pinned in the `Dockerfile`; bump the version there and
-  `docker compose build` to update.
+- **Package managers.** `dsh` and its dependencies are installed with `pnpm`
+  from `package.json` / `pnpm-lock.yaml` during the build. The only thing npm
+  installs is `pnpm` itself (`pnpm@12.4.2`, pinned in the `Dockerfile`);
+  `dsh plugin` uses that same pnpm at runtime.
+- **Updating dsh.** It's pinned in `package.json`. Bump the version there, run
+  `pnpm install` to refresh `pnpm-lock.yaml`, then rebuild (`just recreate`).
 
 ## Hardening
 
