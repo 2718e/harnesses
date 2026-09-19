@@ -55,10 +55,13 @@ dsh's user skill root:
 
 ## Notes
 
-- **venvs are container-scoped.** A virtualenv the agent creates inside a project
-  is bound to the container's Python at `/usr/local/bin`. It works for the agent,
-  but that project's Python tooling on the host won't reuse it — recreate a venv
-  there if you work on the project directly on the host.
+- **Python environments (uv).** `uv` is installed in the image and configured
+  with `UV_PROJECT_ENVIRONMENT=.venv-agent-container`, so each project gets its
+  environment in a project-local `.venv-agent-container/` directory. The
+  container never reads or overwrites the host's `.venv`, and uv no longer
+  deletes a `.venv` that was built for the host. `.venv-agent-container` is still
+  bound to the container's Python, so recreate one on the host if you work on the
+  project directly there. Agent-facing rules live in `global-agent-config/AGENTS.md`.
 - **Networking.** `dsh` only binds `127.0.0.1` and refuses `--host 0.0.0.0`, so the
   container uses host networking to be reachable at `localhost:3080`. That means
   the container can also reach other host services on loopback. For stronger

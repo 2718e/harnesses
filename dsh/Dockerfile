@@ -15,6 +15,11 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# uv manages per-project Python environments for the agent. Copied from the
+# official image rather than installed with npm/pip so it is not tied to either
+# ecosystem. Version pinned for reproducibility; bump the tag and rebuild.
+COPY --from=ghcr.io/astral-sh/uv:0.12.17 /uv /uvx /usr/local/bin/
+
 # pnpm is required at runtime by `dsh plugin` and profile management. It is the
 # only thing npm installs; everything else goes through pnpm. Version pinned for
 # reproducibility; bump it here and rebuild to update.
@@ -38,6 +43,14 @@ RUN groupadd --gid 1000 dev \
 ENV DSH_HOME=/dsh-home
 ENV HOME=/dsh-home
 ENV DSH_TELEMETRY_MODE=DISABLED
+
+# Keep the agent's Python environment out of the host's `.venv`: uv creates the
+# project environment under this container-only name instead (relative paths are
+# resolved from the project root), so a `.venv` made on the host is never
+# touched. uv's cache lives on the writable $DSH_HOME volume while projects are
+# host bind mounts, so files are copied rather than hardlinked.
+ENV UV_PROJECT_ENVIRONMENT=.venv-agent-container
+ENV UV_LINK_MODE=copy
 
 # The web profile's HMR service requires the --expose-internals Node flag, which
 # is not allowed via NODE_OPTIONS, so dsh is launched through this wrapper.
