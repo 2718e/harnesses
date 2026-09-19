@@ -1,0 +1,17 @@
+# Docker build context = the node project only. Everything else in this folder
+# (compose, specs, env, agent config) must not end up in the image.
+.env
+.git
+.gitignore
+node_modules
+.pnpm-store
+Dockerfile
+.dockerignore
+compose.yaml
+compose.folders.yaml
+compose.folders.example.yaml
+README.md
+justfile
+global-agent-config
+prompts
+specs

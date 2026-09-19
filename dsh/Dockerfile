@@ -15,9 +15,20 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# pnpm is required for `dsh plugin` management. Version pinned for reproducibility;
-# bump it here and rebuild to update.
-RUN npm install -g pnpm @deepseek-ai/dsh@0.1.5-rc.2
+# pnpm is required at runtime by `dsh plugin` and profile management. It is the
+# only thing npm installs; everything else goes through pnpm. Version pinned for
+# reproducibility; bump it here and rebuild to update.
+RUN npm install -g pnpm@12.4.2
+
+# dsh is an ordinary dependency of this project (package.json / pnpm-lock.yaml),
+# so it is installed with pnpm during the build instead of being pinned in this
+# Dockerfile. Bump the version in package.json, regenerate the lockfile with
+# `pnpm install`, and rebuild to update.
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts --store-dir /tmp/pnpm-store \
+    && rm -rf /tmp/pnpm-store
+ENV PATH="/app/node_modules/.bin:${PATH}"
 
 # Non-root user matching host uid/gid 1000 so files written to the mounted
 # workspace are owned by the host user. Home lives on the $DSH_HOME volume.
@@ -30,7 +41,7 @@ ENV DSH_TELEMETRY_MODE=DISABLED
 
 # The web profile's HMR service requires the --expose-internals Node flag, which
 # is not allowed via NODE_OPTIONS, so dsh is launched through this wrapper.
-RUN printf '#!/bin/sh\nexec node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js "$@"\n' \
+RUN printf '#!/bin/sh\nexec node --expose-internals /app/node_modules/@deepseek-ai/dsh/lib/bin.js "$@"\n' \
         > /usr/local/bin/dsh-prod \
     && chmod +x /usr/local/bin/dsh-prod
 

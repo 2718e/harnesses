@@ -64,8 +64,12 @@ dsh's user skill root:
   the container can also reach other host services on loopback. For stronger
   isolation, bind a static container IP and run `dsh web --host <ip>` instead.
 - **Telemetry is disabled** (`DSH_TELEMETRY_MODE=DISABLED`).
-- **Updating dsh.** It's pinned in the `Dockerfile`; bump the version there and
-  `docker compose build` to update.
+- **Package managers.** `dsh` and its dependencies are installed with `pnpm`
+  from `package.json` / `pnpm-lock.yaml` during the build. The only thing npm
+  installs is `pnpm` itself (`pnpm@12.4.2`, pinned in the `Dockerfile`);
+  `dsh plugin` uses that same pnpm at runtime.
+- **Updating dsh.** It's pinned in `package.json`. Bump the version there, run
+  `pnpm install` to refresh `pnpm-lock.yaml`, then rebuild (`just recreate`).
 
 ## Hardening
 
