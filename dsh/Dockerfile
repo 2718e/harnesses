@@ -17,7 +17,7 @@ RUN apt-get update \
 
 # pnpm is required for `dsh plugin` management. Version pinned for reproducibility;
 # bump it here and rebuild to update.
-RUN npm install -g pnpm @deepseek-ai/dsh@0.1.1-rc.2
+RUN npm install -g pnpm @deepseek-ai/dsh@0.1.5-rc.2
 
 # Non-root user matching host uid/gid 1000 so files written to the mounted
 # workspace are owned by the host user. Home lives on the $DSH_HOME volume.

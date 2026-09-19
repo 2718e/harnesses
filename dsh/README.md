@@ -7,12 +7,26 @@ in a container, as recommended by the project's
 ## Quick start
 
 ```sh
-cp .env.example .env        # add your DEEPSEEK_API_KEY
-docker compose up -d --build
+cp .env.example .env 
+```
+Add the DEEPSEEK_API_KEY to .env
+
+Then, with [`just`](https://just.systems) installed on the host:
+
+```sh
+just start    # build if needed, start, and print the URL with the token
 ```
 
-Open http://localhost:3080 in a browser. In **Settings → Models** add your DeepSeek
-API key, then **Choose workspace** and select `/workspace` (the mounted project).
+Run `just` on its own to list all recipes (`url`, `recreate`, `logs`, `shell`,
+`stop`, `down`, ...). Open the printed URL in the browser.
+Note that the workspace is the level above the default folder
+
+The underlying commands still work if you prefer not to use `just`:
+
+```sh
+docker compose up -d --build
+docker compose logs # to see the url with the token
+```
 
 ## Adding a project
 
@@ -24,7 +38,7 @@ add project folders, resource folders, etc/
 `compose.folders.example.yaml` gives an example of adding this repository itself.
 
 ```sh
-docker compose up -d --force-recreate
+just recreate
 ```
 
 Then pick the new mount path in **Choose workspace**.

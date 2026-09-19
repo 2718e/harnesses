@@ -1,0 +1,48 @@
+# Convenience wrapper around the docker compose commands for this container.
+#
+# Requires `just` (https://just.systems) and Docker Compose on the host.
+# Recipes run from this directory, so compose picks up ./compose.yaml (and its
+# `include:` of compose.folders.yaml) and the DEEPSEEK_API_KEY in ./.env.
+
+default:
+    @just --list
+
+# Build the image.
+build:
+    docker compose build
+
+# Start (or update) the container and print the authenticated web URL.
+start:
+    docker compose up -d
+    @just url
+
+# Rebuild the image, recreate the container and print the authenticated URL.
+recreate:
+    docker compose up -d --build --force-recreate
+    @just url
+
+# Print the web URL (with token) for the running container, waiting for startup.
+url:
+    @for i in $(seq 1 60); do \
+        u="$(docker compose logs dsh 2>/dev/null | sed -n 's/.*dsh web: \(http[^ ]*\).*/\1/p' | tail -n1)"; \
+        if [ -n "$u" ]; then echo "$u"; exit 0; fi; \
+        sleep 1; \
+    done; \
+    echo "No URL yet - check the logs with: just logs" >&2; \
+    exit 1
+
+# Follow the container logs (contains the URL line printed at startup).
+logs:
+    docker compose logs -f
+
+# Open a shell inside the running container.
+shell:
+    docker compose exec dsh bash
+
+# Stop the container without removing it.
+stop:
+    docker compose stop
+
+# Stop and remove the container (the dsh-home volume is kept).
+down:
+    docker compose down
