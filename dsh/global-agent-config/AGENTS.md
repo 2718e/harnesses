@@ -8,7 +8,7 @@ When documenting or explaining features that you build, do so under `.agent-diar
 
 ## Your environment
 
-Note that your home directory is read only. This is by design to keep your setup reproducible
+Note that your home directory is read only. This is by design to keep your setup reproducible.
 
 ## Python environments
 
@@ -26,7 +26,7 @@ Note that your home directory is read only. This is by design to keep your setup
 
 ## Coding style
 
-These are rules of thumb. Follow them if there is no specific reason not to, but these can be overriden by 
+These are rules of thumb. Follow them if there is no specific reason not to.
 
 ### Readability
 
