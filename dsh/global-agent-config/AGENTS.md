@@ -6,6 +6,10 @@
 
 When documenting or explaining features that you build, do so under `.agent-diaries/feature-docs/${date in YYYY-MM-DD}-${feature name}.md` (If the `.agent-diaries folder does not exist, create it)
 
+## Your environment
+
+Note that your home directory is read only. This is by design to keep your setup reproducible
+
 ## Python environments
 
 - Use `uv` for all Python work: `uv sync`, `uv run <cmd>`, `uv add <pkg>`,
@@ -19,3 +23,15 @@ When documenting or explaining features that you build, do so under `.agent-diar
   `python -m venv .venv-agent-container` — never `.venv`.
 - Add `.venv-agent-container/` to the project's `.gitignore` if it is not
   already there.
+
+## Coding style
+
+These are rules of thumb. Follow them if there is no specific reason not to, but these can be overriden by 
+
+### Readability
+
+When naming variables, functions, parameters, classes, interfaces, etc. choose names that match the plain-english intent of what the function is for.
+
+Avoid excessive explanatory comments. Assume the user knows how to read code or can ask for explanations. Only use comments when something is counterintuitive.
+
+Prefer to solve problems in the simple way, without writing more code than is mecessary to solve the problem. Less text and less code is easier to read.
