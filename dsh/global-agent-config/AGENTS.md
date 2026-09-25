@@ -26,12 +26,16 @@ Note that your home directory is read only. This is by design to keep your setup
 
 ## Coding style
 
-These are rules of thumb. Follow them if there is no specific reason not to.
-
 ### Readability
 
-When naming variables, functions, parameters, classes, interfaces, etc. choose names that match the plain-english intent of what the function is for.
+When naming variables, functions, parameters, classes, interfaces, etc. choose names that match the plain-english intent.
 
-Avoid excessive explanatory comments. Assume the user knows how to read code or can ask for explanations. Only use comments when something is counterintuitive.
+Avoid excessive explanatory comments. Assume the user knows how to read code. Only use comments when something is counterintuitive.
 
-Prefer to solve problems in the simple way, without writing more code than is mecessary to solve the problem. Less text and less code is easier to read.
+Prefer to solve problems in the simple way, without writing more code than is necessary to solve the problem. Less text and less code is easier to read.
+
+## Security
+
+Follow these rules in addition to any you already would:
+
+- do not add secrets (such as API keys) or identifying information (such as email addresses or phone numbers) to source controlled files.
