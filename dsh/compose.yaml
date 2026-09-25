@@ -21,13 +21,44 @@ services:
       - no-new-privileges:true
     working_dir: /workspace
     environment:
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
       - DSH_TELEMETRY_MODE=DISABLED
+      # Provider API keys. Compose auto-loads ./.env for these interpolations
+      # (and the host shell also works), and dsh treats a blank value as unset,
+      # so only the keys you actually fill in become credentials. This list is
+      # the common pi-ai catalog providers; any other variable in ./.env reaches
+      # the container via env_file below, so a new provider needs no edit here.
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - AI_GATEWAY_API_KEY=${AI_GATEWAY_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
+      - ZAI_API_KEY=${ZAI_API_KEY:-}
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
+      - CEREBRAS_API_KEY=${CEREBRAS_API_KEY:-}
+      - TOGETHER_API_KEY=${TOGETHER_API_KEY:-}
+      - FIREWORKS_API_KEY=${FIREWORKS_API_KEY:-}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+    # Passes every variable defined in ./.env into the container, so a provider
+    # key outside the list above needs no compose edit. `required: false` keeps
+    # the container startable before ./.env exists (Compose >= 2.24).
+    env_file:
+      - path: .env
+        required: false
     volumes:
       - dsh-home:/dsh-home
       # Harness-level skills are bind-mounted over dsh's user skill root
       - ./global-agent-config/skills:/dsh-home/skills:ro
       - ./global-agent-config/AGENTS.md:/dsh-home/AGENTS.md:ro
+      # Home-level dsh patch layer: seeds the dsh-llm-pi-ai provider routes
+      # (Vercel AI Gateway, ...) that read the keys above. Read-only; edit it on
+      # the host and the running profile hot-reloads it.
+      - ./global-agent-config/cordis.patch.yml:/dsh-home/cordis.patch.yml:ro
 
 volumes:
   dsh-home:

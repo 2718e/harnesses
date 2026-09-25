@@ -9,7 +9,8 @@ in a container, as recommended by the project's
 ```sh
 cp .env.example .env 
 ```
-Add the DEEPSEEK_API_KEY to .env
+Add the API keys you have (at least one model provider — see
+[Model providers](#model-providers)).
 
 Then, with [`just`](https://just.systems) installed on the host:
 
@@ -28,6 +29,46 @@ docker compose up -d --build
 docker compose logs # to see the url with the token
 ```
 
+## Model providers
+
+The container is wired for several model providers at once. DeepSeek's own API
+works out of the box through the built-in `deepseek-official` route; Vercel AI
+Gateway is seeded through the multi-provider `dsh-llm-pi-ai` adapter.
+
+Put the keys you have in `.env` (see `.env.example`) and run `just recreate`:
+
+```sh
+DEEPSEEK_API_KEY=sk-...
+AI_GATEWAY_API_KEY=...
+```
+
+- Compose auto-loads `.env` for interpolation and passes every variable in it
+  into the container (`env_file`), so a new provider key needs no compose edit.
+  A blank key counts as unset, so leaving one out is harmless.
+- The routes are declared in `global-agent-config/cordis.patch.yml`, mounted
+  read-only at `$DSH_HOME/cordis.patch.yml`. It seeds Vercel AI Gateway and
+  carries commented entries for the other pi-ai catalog providers (OpenAI,
+  Anthropic, Google, OpenRouter, Groq, xAI, ...) and for hand-declared
+  OpenAI/Anthropic-compatible endpoints. The file hot-reloads; uncomment a
+  route to enable it.
+- Choose the model per session from the model selector, or change the default
+  from the Web **Models** page.
+
+Adding a provider without editing any file: open the Web **Models** page, add
+the provider/route, and (if its key is not already in `.env`) paste the key.
+Those edits live in `$DSH_HOME/settings.yaml` and `$DSH_HOME/.credentials.yaml`
+on the persistent `dsh-home` volume, merge over `cordis.patch.yml`, and survive
+`just recreate` / `just down`.
+
+Notes:
+
+- `web_search` uses `DEEPSEEK_API_KEY` (the harness's shipped search provider),
+  so keep a DeepSeek key if you want web search even while chatting through
+  another provider.
+- Keys are read from the container environment per request, so after editing
+  `.env` run `just recreate` to pass the new value in; routes added from the Web
+  UI take effect immediately.
+
 ## Adding a project
 
 Projects are mounted individually so the container only sees what you give it.
@@ -45,12 +86,12 @@ Then pick the new mount path in **Choose workspace**.
 
 ## Skills
 
-Harness-level skill definitions live defined at
-`harness-level-skills/skills/<name>/SKILL.md` and are bind-mounted read-only into
+Harness-level skill definitions live at
+`global-agent-config/skills/<name>/SKILL.md` and are bind-mounted read-only into
 dsh's user skill root:
 
 ```yaml
-- ./harness-level-skills/skills:/dsh-home/skills:ro
+- ./global-agent-config/skills:/dsh-home/skills:ro
 ```
 
 ## Notes

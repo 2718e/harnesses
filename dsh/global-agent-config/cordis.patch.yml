@@ -1,0 +1,86 @@
+# Home-level dsh patch layer ($DSH_HOME/cordis.patch.yml), bind-mounted
+# read-only by compose.yaml. dsh applies it after every profile bundle and the
+# profile's own cordis.patch.yml, to every profile, and hot-reloads it.
+#
+# Its job here is to wake up the `dsh-llm-pi-ai` multi-provider adapter, which
+# ships dormant (zero routes, no models in the picker). Each key under
+# `providers` is a route name model requests select; pi-ai's installed catalog
+# supplies the endpoint, wire protocol, and model list, so a catalog route only
+# needs the credential reference.
+#
+# No secret goes in this file: `apiKeyEnv` names the environment variable that
+# compose passes through from ./.env (or the host shell). dsh resolves it per
+# request, so changing a key takes effect without a restart.
+#
+# Anything added in the Web UI's Models page is written to
+# $DSH_HOME/settings.yaml (on the persistent dsh-home volume) and merges over
+# this file per provider; it survives `just recreate`/`just down`. Prefer the
+# UI for ad-hoc providers, and keep this file for defaults you want versioned.
+
+- id: llm-pi-ai
+  config:
+    providers:
+      # One Vercel key, many vendors: Vercel AI Gateway fronts DeepSeek, OpenAI,
+      # Anthropic, Google, xAI, and dozens more (237 models in the shipped
+      # catalog). Get a key at https://vercel.com/ai-gateway and put it in
+      # ./.env as AI_GATEWAY_API_KEY.
+      vercel-ai-gateway:
+        displayName: Vercel AI Gateway
+        apiKeyEnv: AI_GATEWAY_API_KEY
+
+      # ── Other catalog routes ────────────────────────────────────────────────
+      # Uncomment the ones you have keys for. The env var named by apiKeyEnv is
+      # the standard one for that provider; compose already passes them through.
+      # `models:` is omitted, so the full installed catalog is offered.
+      #
+      # openai:
+      #   apiKeyEnv: OPENAI_API_KEY
+      # anthropic:
+      #   apiKeyEnv: ANTHROPIC_API_KEY
+      # google:
+      #   apiKeyEnv: GEMINI_API_KEY
+      # openrouter:
+      #   apiKeyEnv: OPENROUTER_API_KEY
+      # groq:
+      #   apiKeyEnv: GROQ_API_KEY
+      # xai:
+      #   apiKeyEnv: XAI_API_KEY
+      # mistral:
+      #   apiKeyEnv: MISTRAL_API_KEY
+      # moonshotai:
+      #   apiKeyEnv: MOONSHOT_API_KEY
+      # zai:
+      #   apiKeyEnv: ZAI_API_KEY
+      # minimax:
+      #   apiKeyEnv: MINIMAX_API_KEY
+      # cerebras:
+      #   apiKeyEnv: CEREBRAS_API_KEY
+      # together:
+      #   apiKeyEnv: TOGETHER_API_KEY
+      # fireworks:
+      #   apiKeyEnv: FIREWORKS_API_KEY
+      # nvidia:
+      #   apiKeyEnv: NVIDIA_API_KEY
+      #
+      # DeepSeek's own API is already served by the built-in `deepseek-official`
+      # route (dsh-llm-deepseek, DEEPSEEK_API_KEY), so it needs no entry here.
+      # The pi-ai catalog twin would be a separate, duplicate route:
+      # deepseek:
+      #   apiKeyEnv: DEEPSEEK_API_KEY
+
+      # ── Any other provider / self-hosted endpoint ───────────────────────────
+      # A provider pi-ai does not ship needs its protocol, endpoint, and models
+      # declared. Any OpenAI-compatible or Anthropic-compatible endpoint works,
+      # which covers most gateways, llama.cpp/Ollama/vLLM, and corporate
+      # proxies. Use `compat` only when the endpoint needs a dialect switch.
+      #
+      # my-gateway:
+      #   displayName: My Gateway
+      #   apiKeyEnv: MY_GATEWAY_API_KEY
+      #   api: openai-completions        # or: anthropic-messages
+      #   baseURL: https://gateway.example/v1
+      #   models:
+      #     - id: my-model
+      #       name: My Model
+      #       contextWindow: 131072
+      #       maxTokens: 32768

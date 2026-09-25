@@ -2,7 +2,7 @@
 #
 # Requires `just` (https://just.systems) and Docker Compose on the host.
 # Recipes run from this directory, so compose picks up ./compose.yaml (and its
-# `include:` of compose.folders.yaml) and the DEEPSEEK_API_KEY in ./.env.
+# `include:` of compose.folders.yaml) and the provider API keys in ./.env.
 
 default:
     @just --list
