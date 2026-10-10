@@ -10,6 +10,6 @@
     "dsh": "dsh"
   },
   "dependencies": {
-    "@deepseek-ai/dsh": "0.1.5-rc.2"
+    "@deepseek-ai/dsh": "0.2.0-rc.2"
   }
 }

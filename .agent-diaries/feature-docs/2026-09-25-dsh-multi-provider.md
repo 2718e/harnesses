@@ -2,6 +2,14 @@
 
 Date: 2026-09-25
 
+> **Superseded in part by the 0.2.0 update (2026-10-10).** The home-level
+> `global-agent-config/cordis.patch.yml` and its compose mount described below
+> were removed: 0.2.0 makes the Web Models page write the *profile* patch, and
+> the home-level layer outranks it, so the seed overrode every UI edit for that
+> row. Providers are now configured from the Models page, and the pi-ai catalog
+> supplies each provider's `apiKeyEnv`. See
+> `2026-10-10-dsh-0.2.0-update.md`.
+
 ## Problem
 
 The container hard-coded a single provider: `compose.yaml` passed only
