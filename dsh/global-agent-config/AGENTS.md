@@ -40,6 +40,19 @@ Avoid excessive explanatory comments. Assume the user knows how to read code. On
 
 Prefer to solve problems in the simple way, without writing more code than is necessary to solve the problem. Less text and less code is easier to read.
 
+### Exensibility and composability
+
+Rules of thumb:
+
+Objects and functions should depend on abstractions (e.g. interfaces, or similar constructs depending on implementation language)
+
+DI / IOC Pattern: Objects and functions should expect to be passed fully constructed dependencies and inputs rather than internally constructing them. Some caveats: 
+- It is OK to create convenience methods that construct the dependencies and then pass them to the method that accepts the dependencies.
+
+### Type safety
+
+In languages with optional typing features, these typing features should be used. 
+
 ## Security
 
 Follow these rules in addition to any you already would:
