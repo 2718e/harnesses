@@ -18,4 +18,4 @@ Currently it assumes that uv will be used for dependency management in python pr
 
 ## Credits
 
-Copy pasted some skills from https://github.com/mattpocock/skills
+spec-refine skill adapted from the grilling skill in https://github.com/mattpocock/skills
