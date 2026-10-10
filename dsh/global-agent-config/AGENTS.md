@@ -1,14 +1,20 @@
 # Global Behavior Constraints
 
-- NEVER modify or append to the root `README.md` file.
+- NEVER modify or append to the any `README.md` files.
 
-## Feature documentation
+## Documentation
 
-When documenting or explaining features that you build, do so under `.agent-diaries/feature-docs/${date in YYYY-MM-DD}-${feature name}.md` (If the `.agent-diaries folder does not exist, create it)
+the primary place for agent written documententation is `.agent-writing/docs/MAIN.md` - this is what you should write to instead of writing to README.md files. If the MAIN.md gets long or complex, you can split it up into multiple files also under the `.agent-writing/docs` folder. A good rule of thumb for when to split out sections is when a documentaion file becomes more than 250 lines.
 
-## Your environment
+Write documentation in a concise way - it is generally easier for a human reader to read less words.
 
-Note that your home directory is read only. This is by design to keep your setup reproducible.
+You can also make notes under `.agent-writing/diaries/${date in YYYY-MM-DD}-${feature name}.md`. This is for notes, learnings, decisions, and reasoning behind decisions. files in `agent-writing/diaries` relate to **a point in time** - don't edit files in this folder if the datestamp on the file is not the current date. Don't waste tokens reading the diaries unless you want to understand historical reasoning about a past project decision.
+
+If the `.agent-writing/docs` or `.agent-writing/diaries` folders don't exist create, them. If a project has an `.agent-diaries` folder (or an `.agent-diaries/feature-docs`), move the contents into `.agent-writing/diaries` then remove the folder.
+
+### Handling monorepos
+
+I sometimes have more than one project inside the same git repository. In these case the instructions about where to create documentation are relative to the root of each individual project, not the repository or workspace.
 
 ## Python environments
 
@@ -30,7 +36,7 @@ Note that your home directory is read only. This is by design to keep your setup
 
 When naming variables, functions, parameters, classes, interfaces, etc. choose names that match the plain-english intent.
 
-Avoid excessive explanatory comments. Assume the user knows how to read code. Only use comments when something is counterintuitive.
+Avoid excessive explanatory comments. Assume the user knows how to read code. Only use comments when something is counterintuitive, and keep the comments as concise as possible.
 
 Prefer to solve problems in the simple way, without writing more code than is necessary to solve the problem. Less text and less code is easier to read.
 
