@@ -55,10 +55,6 @@ services:
       # Harness-level skills are bind-mounted over dsh's user skill root
       - ./global-agent-config/skills:/dsh-home/skills:ro
       - ./global-agent-config/AGENTS.md:/dsh-home/AGENTS.md:ro
-      # Home-level dsh patch layer: seeds the dsh-llm-pi-ai provider routes
-      # (Vercel AI Gateway, ...) that read the keys above. Read-only; edit it on
-      # the host and the running profile hot-reloads it.
-      - ./global-agent-config/cordis.patch.yml:/dsh-home/cordis.patch.yml:ro
 
 volumes:
   dsh-home:

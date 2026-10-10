@@ -44,6 +44,12 @@ ENV DSH_HOME=/dsh-home
 ENV HOME=/dsh-home
 ENV DSH_TELEMETRY_MODE=DISABLED
 
+# dsh 0.2 loads a native addon that copies itself into a cache directory and
+# mmaps the copy executable. That cache defaults to /tmp, which Docker mounts
+# noexec, so the mmap fails and dsh exits at boot ("No usable native binding").
+# Put the cache on the executable $DSH_HOME volume instead.
+ENV NARB_NATIVE_CACHE_DIR=${DSH_HOME}/.cache/native-binaries
+
 # Keep the agent's Python environment out of the host's `.venv`: uv creates the
 # project environment under this container-only name instead (relative paths are
 # resolved from the project root), so a `.venv` made on the host is never
@@ -52,8 +58,9 @@ ENV DSH_TELEMETRY_MODE=DISABLED
 ENV UV_PROJECT_ENVIRONMENT=.venv-agent-container
 ENV UV_LINK_MODE=copy
 
-# The web profile's HMR service requires the --expose-internals Node flag, which
-# is not allowed via NODE_OPTIONS, so dsh is launched through this wrapper.
+# dsh reaches Node loader internals either through the --expose-internals flag
+# or through a native binding. The flag is the built-in path, and NODE_OPTIONS
+# cannot carry it, so dsh is launched through this wrapper.
 RUN printf '#!/bin/sh\nexec node --expose-internals /app/node_modules/@deepseek-ai/dsh/lib/bin.js "$@"\n' \
         > /usr/local/bin/dsh-prod \
     && chmod +x /usr/local/bin/dsh-prod

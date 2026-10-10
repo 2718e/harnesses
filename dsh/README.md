@@ -31,9 +31,11 @@ docker compose logs # to see the url with the token
 
 ## Model providers
 
-The container is wired for several model providers at once. DeepSeek's own API
-works out of the box through the built-in `deepseek-official` route; Vercel AI
-Gateway is seeded through the multi-provider `dsh-llm-pi-ai` adapter.
+DeepSeek's own API works out of the box through the built-in `deepseek-official`
+route. Every other provider (Vercel AI Gateway, OpenAI, Anthropic, Google, ...)
+is configured once from the Web **Models** page and stored in the active
+profile's `cordis.patch.yml`, so dsh owns that configuration and this repo does
+not duplicate it.
 
 Put the keys you have in `.env` (see `.env.example`) and run `just recreate`:
 
@@ -45,19 +47,20 @@ AI_GATEWAY_API_KEY=...
 - Compose auto-loads `.env` for interpolation and passes every variable in it
   into the container (`env_file`), so a new provider key needs no compose edit.
   A blank key counts as unset, so leaving one out is harmless.
-- The routes are declared in `global-agent-config/cordis.patch.yml`, mounted
-  read-only at `$DSH_HOME/cordis.patch.yml`. It seeds Vercel AI Gateway and
-  carries commented entries for the other pi-ai catalog providers (OpenAI,
-  Anthropic, Google, OpenRouter, Groq, xAI, ...) and for hand-declared
-  OpenAI/Anthropic-compatible endpoints. The file hot-reloads; uncomment a
-  route to enable it.
+- dsh ships a catalog of providers whose endpoint, protocol, model list, and
+  environment-variable name are built in. Adding one from the Models page (for
+  example Vercel AI Gateway) therefore reads `AI_GATEWAY_API_KEY` straight from
+  the environment: no key to paste and no route file to edit. The catalog covers
+  OpenAI, Anthropic, Google, OpenRouter, Groq, xAI, and more.
+- Open **Settings → Models → Add model provider**. For an endpoint the catalog
+  does not ship (a relay, a self-hosted server, any OpenAI/Anthropic-compatible
+  gateway), choose **Custom model API** and fill in the endpoint, protocol, and
+  models.
 - Choose the model per session from the model selector, or change the default
   from the Web **Models** page.
 
-Adding a provider without editing any file: open the Web **Models** page, add
-the provider/route, and (if its key is not already in `.env`) paste the key.
-Those edits live in `$DSH_HOME/settings.yaml` and `$DSH_HOME/.credentials.yaml`
-on the persistent `dsh-home` volume, merge over `cordis.patch.yml`, and survive
+Provider routes added or edited in the Models page live in the profile patch and
+`$DSH_HOME/.credentials.yaml` on the persistent `dsh-home` volume, and survive
 `just recreate` / `just down`.
 
 Notes:
@@ -66,8 +69,8 @@ Notes:
   so keep a DeepSeek key if you want web search even while chatting through
   another provider.
 - Keys are read from the container environment per request, so after editing
-  `.env` run `just recreate` to pass the new value in; routes added from the Web
-  UI take effect immediately.
+  `.env` run `just recreate` to pass the new value in; providers added from the
+  Web UI take effect immediately.
 
 ## Adding a project
 
@@ -112,6 +115,18 @@ dsh's user skill root:
   from `package.json` / `pnpm-lock.yaml` during the build. The only thing npm
   installs is `pnpm` itself (`pnpm@12.4.2`, pinned in the `Dockerfile`);
   `dsh plugin` uses that same pnpm at runtime.
+- **Native addon cache.** dsh 0.2 loads a native binding at startup and, by
+  default, copies the prebuilt `.node` into `/tmp` and maps it executable. The
+  container's `/tmp` is `noexec`, so that mapping fails and dsh exits with
+  `No usable native binding found`. The `Dockerfile` sets
+  `NARB_NATIVE_CACHE_DIR=$DSH_HOME/.cache/native-binaries` to put the copy on
+  the executable `dsh-home` volume instead.
+- **`$DSH_HOME` is writable by dsh, not by the agent.** The `dsh-home` volume
+  holds sessions, credentials, settings, and profile patches, so the harness
+  process and the Web UI write it. The agent's file sandbox is narrower: it may
+  only write the mounted workspace, which keeps a session from rewriting its own
+  harness config. That split is deliberate; a rebuild restores the image and the
+  volume carries the user state forward.
 - **Updating dsh.** It's pinned in `package.json`. Bump the version there, run
   `pnpm install` to refresh `pnpm-lock.yaml`, then rebuild (`just recreate`).
 
