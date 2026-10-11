@@ -4,13 +4,13 @@
 
 ## Documentation
 
-the primary place for agent written documententation is `.agent-writing/docs/MAIN.md` - this is what you should write to instead of writing to README.md files. If the MAIN.md gets long or complex, you can split it up into multiple files also under the `.agent-writing/docs` folder. A good rule of thumb for when to split out sections is when a documentaion file becomes more than 250 lines.
+the primary place for agent written documententation is `.agent-writing/docs/MAIN.md` - this is what you should write to instead of writing to README.md files. You are also allowed to create separate documents and subfolders withing `.agent-writing/docs` if it makes sense to.
 
 Write documentation in a concise way - it is generally easier for a human reader to read less words.
 
-You can also make notes under `.agent-writing/diaries/${date in YYYY-MM-DD}-${feature name}.md`. This is for notes, learnings, decisions, and reasoning behind decisions. files in `agent-writing/diaries` relate to **a point in time** - don't edit files in this folder if the datestamp on the file is not the current date. Don't waste tokens reading the diaries unless you want to understand historical reasoning about a past project decision.
+You can also make notes under `.agent-writing/diaries/${date in YYYY-MM-DD}-${feature name}.md`. This is for notes, learnings, decisions, and reasoning behind decisions.Ddon't edit files in this folder if the datestamp on the file is not the current date. The key difference between diaries and docs is that diaries relate to **a point in time** - diaries don't need to be maintained or updated to reflect changes, and you shouldn't waste tokens reading the diaries unless you want to understand historical reasoning about a past project decision.
 
-If the `.agent-writing/docs` or `.agent-writing/diaries` folders don't exist create, them. If a project has an `.agent-diaries` folder (or an `.agent-diaries/feature-docs`), move the contents into `.agent-writing/diaries` then remove the folder.
+If the `.agent-writing/docs` or `.agent-writing/diaries` folders don't exist create them. If a project has an `.agent-diaries` folder (or an `.agent-diaries/feature-docs`), move the contents into `.agent-writing/diaries` then remove the folder.
 
 ### Handling monorepos
 
