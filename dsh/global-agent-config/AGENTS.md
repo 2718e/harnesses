@@ -16,6 +16,10 @@ If the `.agent-writing/docs` or `.agent-writing/diaries` folders don't exist cre
 
 I sometimes have more than one project inside the same git repository. In these case the instructions about where to create documentation are relative to the root of each individual project, not the repository or workspace.
 
+### "How to run this" type docs
+
+For documentation of the form "what commands would be executed to run this" or similar - if a justfile is present, consider if it makes sense to add these commands to the justfile as well as documenting them.
+
 ## Python environments
 
 - Use `uv` for all Python work: `uv sync`, `uv run <cmd>`, `uv add <pkg>`,

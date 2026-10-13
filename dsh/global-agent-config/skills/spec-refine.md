@@ -34,6 +34,6 @@ Rule 2) Is it necessary to build the thing you would ask about in order to creat
 
 The session is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed. Do not act on it until the user confirms you have reached a shared understanding.
 
-When the session is finished, write out a new refined spec under `.agent-diaries/refined-specs/${date in YYYY-MM-DD}-${feature name}-${revision_number}.md`. The refined should include enough detail for another agent to be able to build.
+When the session is finished, write out a new refined spec under `.agent-writing/plans/${date in YYYY-MM-DD}-${feature name}-${revision_number}.md`. The refined should include enough detail for another agent to be able to build.
 
 The revision number will be `001` unless that file already exists - if so choose the lowest number that does not have an existing file.
