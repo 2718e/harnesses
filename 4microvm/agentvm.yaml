@@ -1,0 +1,11 @@
+
+# agent.yaml
+# want to put agent in a vm rather than container so that agent can
+# validate container definitions and work with containers
+
+base:
+  - template:_images/debian-13
+
+provision:
+  - mode: user
+    file: ./user_provision.sh
