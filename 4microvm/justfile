@@ -1,0 +1,52 @@
+# Host-side helpers for the Lima agent harness VM.
+set shell := ["bash", "-uc"]
+
+default:
+    @just --list
+
+# Create and start the VM from the host-specific mount definition.
+create:
+    limactl start --name=agentvm ./mountavm.yaml
+
+start:
+    limactl start agentvm
+
+stop:
+    limactl stop agentvm
+
+restart:
+    -limactl stop agentvm
+    limactl start agentvm
+
+# Delete and recreate the VM. Guest state and auth are lost.
+recreate:
+    -limactl delete --force agentvm
+    limactl start --name=agentvm ./mountavm.yaml
+
+delete:
+    limactl delete --force agentvm
+
+shell:
+    limactl shell agentvm
+
+status:
+    limactl list agentvm
+
+# Sync mountavm.yaml into the stopped instance. Fails if the VM is running.
+update-mounts:
+    python3 scripts/update_mounts.py agentvm mountavm.yaml
+    @echo "Mounts updated. Run 'just start'."
+
+# Copy tracked config into the guest and restart dsh.
+sync-config:
+    limactl shell agentvm env XDG_RUNTIME_DIR="/run/user/$(id -u)" bash -lc 'install -m 0644 /opt/agent-config/codex/config.toml "$HOME/.codex/config.toml" && ln -sfn /opt/agent-config/AGENTS.md "$HOME/.codex/AGENTS.md" && ln -sfn /opt/agent-config/AGENTS.md "$HOME/.dsh/AGENTS.md" && systemctl --user restart dsh'
+
+# Print the authenticated dsh URL (port 3081).
+url:
+    @limactl shell agentvm env XDG_RUNTIME_DIR="/run/user/$(id -u)" journalctl --user -u dsh -n 200 --no-pager | sed -n 's/.*dsh web: //p' | tail -n1
+
+logs:
+    limactl shell agentvm env XDG_RUNTIME_DIR="/run/user/$(id -u)" journalctl --user -u dsh -f
+
+snapshot:
+    limactl snapshot create agentvm --tag baseline

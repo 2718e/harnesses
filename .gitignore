@@ -1,2 +1,3 @@
 .probe-dsh
 node_modules
+.pnpm-store/

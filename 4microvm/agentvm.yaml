@@ -1,11 +1,36 @@
-
-# agent.yaml
-# want to put agent in a vm rather than container so that agent can
-# validate container definitions and work with containers
+# Generic Lima VM definition for the agent harnesses.
+# Host-specific mounts live in mountavm.yaml; see mountavm.example.yaml.
+# Host prerequisite: the Rust virtiofsd (Debian: sudo apt install virtiofsd).
+# If virtiofsd is unavailable, change mountType to 9p.
 
 base:
   - template:_images/debian-13
 
+vmType: qemu
+cpus: 4
+memory: 8GiB
+disk: 60GiB
+
+# Lima's rootless containerd provides nerdctl, BuildKit, runc and CNI.
+# No Docker daemon is installed.
+containerd:
+  user: true
+  system: false
+
+mountType: virtiofs
+mountInotify: true
+
+portForwards:
+  - guestPort: 3081
+    hostPort: 3081
+    hostIP: 127.0.0.1
+  # Codex browser-login callback (host browser -> guest Codex).
+  - guestPort: 1455
+    hostPort: 1455
+    hostIP: 127.0.0.1
+
 provision:
+  - mode: system
+    file: ./provision/system.sh
   - mode: user
-    file: ./user_provision.sh
+    file: ./provision/user.sh

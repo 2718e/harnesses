@@ -1,0 +1,27 @@
+# Copy to mountavm.yaml and replace /home/USER with the real host paths.
+# All mounts belong here, including agent-config. agentvm.yaml has no mounts.
+# Do not make mount locations or mount points overlap.
+
+base:
+  - ./agentvm.yaml
+
+mounts:
+  - location: "/home/USER/dev/harnesses/4microvm/agent-config"
+    mountPoint: "/opt/agent-config"
+    writable: false
+
+  - location: "/home/USER/dev/property-search"
+    mountPoint: "/projects/property-search"
+    writable: true
+
+  - location: "/home/USER/dev/shared-dev-db"
+    mountPoint: "/projects/shared-dev-db"
+    writable: false
+
+  - location: "/home/USER/dev/_new"
+    mountPoint: "/new-projects"
+    writable: true
+
+  - location: "/home/USER/dev/datasets"
+    mountPoint: "/datasets"
+    writable: false

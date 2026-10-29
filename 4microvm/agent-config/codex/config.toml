@@ -1,0 +1,10 @@
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
+check_for_update_on_startup = false
+
+# Add one entry per project root if Codex does not treat the parent as trusted.
+[projects."/projects"]
+trust_level = "trusted"
+
+[projects."/new-projects"]
+trust_level = "trusted"
