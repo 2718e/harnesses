@@ -44,6 +44,10 @@ PACKAGES=(
     python3-venv
     python3-pip
     sudo
+    uidmap
+    dbus-user-session
+    slirp4netns
+    fuse-overlayfs
 )
 apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 
@@ -57,9 +61,15 @@ curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/doc
 chmod a+r /etc/apt/keyrings/docker.asc
 printf 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian trixie stable\n' > /etc/apt/sources.list.d/docker.list
 apt-get update
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-usermod -aG docker "$AGENT_USER"
-systemctl enable --now docker
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
+# Never leave a rootful daemon or socket available to the agent. Rootless
+# Docker runs as the agent under its systemd user manager instead.
+systemctl disable --now docker.service docker.socket containerd.service || true
+systemctl mask docker.service docker.socket
+if getent group docker >/dev/null && id -nG "$AGENT_USER" | tr ' ' '\n' | grep -qx docker; then
+    gpasswd -d "$AGENT_USER" docker
+fi
+loginctl enable-linger "$AGENT_USER"
 
 # The disk and its environment file are intentionally independent of the VM.
 # The service stays inactive until the user configures that file.
@@ -68,7 +78,36 @@ if ! mountpoint -q /mnt/lima-pgdata; then
     exit 1
 fi
 install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/config
-install -d -m 0755 /mnt/lima-pgdata/postgres
+if [ ! -d /mnt/lima-pgdata/postgres ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/postgres
+fi
+# Rootless container file owners depend on the guest UID and subordinate ID
+# ranges. Refuse to attach old data with a different or unknown mapping.
+subuid=$(awk -F: -v user="$AGENT_USER" '$1 == user { print $2 ":" $3 }' /etc/subuid)
+subgid=$(awk -F: -v user="$AGENT_USER" '$1 == user { print $2 ":" $3 }' /etc/subgid)
+if [ -z "$subuid" ] || [ -z "$subgid" ]; then
+    echo "missing subordinate UID/GID ranges for $AGENT_USER" >&2
+    exit 1
+fi
+identity_file=/mnt/lima-pgdata/config/rootless-identity
+identity=$(printf 'uid=%s\ngid=%s\nsubuid=%s\nsubgid=%s' "$(id -u "$AGENT_USER")" "$(id -g "$AGENT_USER")" "$subuid" "$subgid")
+if [ -e "$identity_file" ]; then
+    if [ "$(cat "$identity_file")" != "$identity" ]; then
+        echo "rootless UID/GID mapping changed; refusing to start the existing database" >&2
+        exit 1
+    fi
+else
+    if [ -n "$(find /mnt/lima-pgdata/postgres -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+        echo "existing database data has no rootless identity record; migrate it before continuing" >&2
+        exit 1
+    fi
+    printf '%s\n' "$identity" > "$identity_file"
+    chmod 0600 "$identity_file"
+    chown "$AGENT_USER:$AGENT_GROUP" "$identity_file"
+fi
+# The image runs initdb as its postgres user, which must traverse this parent
+# directory. PGDATA itself remains private to that user (mode 0700).
+chmod 0711 /mnt/lima-pgdata/postgres
 install -d -m 0755 /etc/shared-dev-db
 cat > /etc/shared-dev-db/compose.yaml <<'EOF'
 services:
@@ -76,29 +115,30 @@ services:
     # systemd starts it only after checking the persistent disk is mounted.
     restart: "no"
 EOF
-cat > /etc/systemd/system/shared-dev-db.service <<'EOF'
+install -d -m 0755 /etc/systemd/user
+cat > /etc/systemd/user/shared-dev-db.service <<'EOF'
 [Unit]
 Description=Shared development PostgreSQL
 Requires=docker.service
-After=docker.service network-online.target
-Wants=network-online.target
-RequiresMountsFor=/mnt/lima-pgdata
-ConditionPathIsMountPoint=/mnt/lima-pgdata
-ConditionPathExists=/mnt/lima-pgdata/config/shared-dev-db.env
+After=docker.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+Environment=DOCKER_HOST=unix://%t/docker.sock
 WorkingDirectory=/projects/shared-dev-db
-ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /projects/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d
+ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-pgdata
+ExecStartPre=/usr/bin/test -f /mnt/lima-pgdata/config/shared-dev-db.env
+ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /projects/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
 ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /projects/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
 TimeoutStartSec=0
+Restart=on-failure
+RestartSec=30
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 EOF
-systemctl daemon-reload
-systemctl enable shared-dev-db.service
 
 # Node is installed from a pinned upstream tarball, matching the container setup.
 NODE_TARBALL="node-v$NODE_VERSION-linux-x64.tar.xz"
@@ -168,6 +208,7 @@ export DSH_TELEMETRY_MODE=DISABLED
 export DSH_PERMISSION_MODE=danger-full-access
 export NARB_NATIVE_CACHE_DIR="$HOME/.cache/native-binaries"
 export GIT_TERMINAL_PROMPT=0
+export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
 EOF
 chmod 0644 /etc/profile.d/agent-env.sh
 

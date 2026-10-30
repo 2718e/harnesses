@@ -11,7 +11,7 @@ cpus: 4
 memory: 8GiB
 disk: 60GiB
 
-# Docker manages its own containerd in the guest.
+# Rootless Docker manages its own containerd in the guest.
 containerd:
   user: false
   system: false
