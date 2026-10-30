@@ -78,8 +78,16 @@ if ! mountpoint -q /mnt/lima-pgdata; then
     exit 1
 fi
 install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/config
+# The disk root belongs to root. Create an empty destination the guest user
+# can clone into, without changing ownership of an existing checkout.
+if [ ! -e /mnt/lima-pgdata/shared-dev-db ]; then
+    install -d -m 0755 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/shared-dev-db
+fi
 if [ ! -d /mnt/lima-pgdata/postgres ]; then
     install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/postgres
+fi
+if [ ! -d /mnt/lima-pgdata/postgres18 ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/postgres18
 fi
 # Rootless container file owners depend on the guest UID and subordinate ID
 # ranges. Refuse to attach old data with a different or unknown mapping.
@@ -108,6 +116,7 @@ fi
 # The image runs initdb as its postgres user, which must traverse this parent
 # directory. PGDATA itself remains private to that user (mode 0700).
 chmod 0711 /mnt/lima-pgdata/postgres
+chmod 0711 /mnt/lima-pgdata/postgres18
 install -d -m 0755 /etc/shared-dev-db
 cat > /etc/shared-dev-db/compose.yaml <<'EOF'
 services:
@@ -127,11 +136,12 @@ StartLimitIntervalSec=0
 Type=oneshot
 RemainAfterExit=yes
 Environment=DOCKER_HOST=unix://%t/docker.sock
-WorkingDirectory=/projects/shared-dev-db
+WorkingDirectory=/mnt/lima-pgdata/shared-dev-db
 ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-pgdata
 ExecStartPre=/usr/bin/test -f /mnt/lima-pgdata/config/shared-dev-db.env
-ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /projects/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
-ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /projects/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
+ExecStartPre=/usr/bin/test -f /mnt/lima-pgdata/config/postgres18-ready
+ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /mnt/lima-pgdata/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /mnt/lima-pgdata/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
 TimeoutStartSec=0
 Restart=on-failure
 RestartSec=30

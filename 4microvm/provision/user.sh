@@ -13,12 +13,25 @@ mkdir -p "$HOME/.codex" "$HOME/.dsh" "$HOME/.cache/native-binaries"
 # logout and starts on boot. Set an explicit runtime environment for cloud-init.
 export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+if [ ! -e /mnt/lima-pgdata/shared-dev-db/.git ]; then
+    # Copy Git objects rather than hard-linking into the host repository.
+    # The checkout is preserved and never updated automatically on recreation.
+    # During dev, checking out from a mount of the project into the VM,
+    # Should eventually checkout from an actual remote once this project
+    # and shared-dev-db stabilise
+    git -c safe.directory=/projects/shared-dev-db clone --no-hardlinks \
+        /projects/shared-dev-db /mnt/lima-pgdata/shared-dev-db
+fi
+if [ ! -f /mnt/lima-pgdata/shared-dev-db/compose.yaml ]; then
+    echo "missing persistent shared-dev-db checkout or compose.yaml" >&2
+    exit 1
+fi
 if ! systemctl --user is-active --quiet docker.service; then
     dockerd-rootless-setuptool.sh install
 fi
 systemctl --user daemon-reload
 systemctl --user enable shared-dev-db.service
-if [ -f /mnt/lima-pgdata/config/shared-dev-db.env ]; then
+if [ -f /mnt/lima-pgdata/config/shared-dev-db.env ] && [ -f /mnt/lima-pgdata/config/postgres18-ready ]; then
     systemctl --user start --no-block shared-dev-db.service
 fi
 

@@ -38,19 +38,28 @@ separate migration; do not change their ownership recursively without a backup.
 
 ## Database service
 
-The database repository is mounted read-only at `/projects/shared-dev-db` so
-the VM can use its Compose definition. Whether to let the agent edit that
-repository is a separate choice from database storage and operation.
+On first provisioning, the VM clones the committed state of the read-only
+repository at `/projects/shared-dev-db` into
+`/mnt/lima-pgdata/shared-dev-db`. Commit the desired database-project changes
+before recreating the VM: a Git clone does not include uncommitted edits.
+The service uses the persistent checkout, so later boots and VM recreations do
+not depend on the source mount. It is not updated automatically. To update it,
+stop the database service and deliberately fetch and fast-forward the checkout;
+the initial `origin` is the mounted repository and can later be changed to a
+remote URL. Whether the agent can edit a separate project mount is independent
+of this checkout.
 
 After creating the VM, in its shell create a private configuration on the
 persistent disk:
 
 ```sh
-cd /projects/shared-dev-db
+cd /mnt/lima-pgdata/shared-dev-db
 umask 077
+# Only if no configuration file exists; preserve an existing password.
 cp .env.example /mnt/lima-pgdata/config/shared-dev-db.env
 # Edit the file: choose a private POSTGRES_PASSWORD and set:
-# POSTGRES_DATA_DIR=/mnt/lima-pgdata/postgres
+# POSTGRES_DATA_DIR=/mnt/lima-pgdata/postgres18
+# Remove any POSTGRES_IMAGE override for the old 17 image.
 ```
 
 Start the database for the first time with:
@@ -58,13 +67,15 @@ Start the database for the first time with:
 ```sh
 docker compose --project-name shared-dev-db \
   --env-file /mnt/lima-pgdata/config/shared-dev-db.env config --quiet
+# After confirming the checkout uses PostgreSQL 18 and the data path above:
+touch /mnt/lima-pgdata/config/postgres18-ready
 systemctl --user start shared-dev-db.service
 COMPOSE_ENV_FILE=/mnt/lima-pgdata/config/shared-dev-db.env \
   ./scripts/create-db.sh my_project
 ```
 
 The user systemd service starts the Compose project on boot and retries if the
-disk, configuration, repository mount, or database health check is not ready. It uses an
+disk, configuration, checkout, or database health check is not ready. It uses an
 override to prevent Docker from starting the database before the disk is
 mounted. The database container is not automatically restarted after a crash;
 restart it with `systemctl --user restart shared-dev-db.service`. The data and
@@ -74,6 +85,12 @@ settings persist on the disk. If startup fails, inspect
 The data directory and password in this example are separate from the host
 instance. Keep the database bound to guest loopback unless remote access is
 deliberately configured.
+
+The `postgres18-ready` file is a one-time opt-in to automatic startup after
+checking the 18 configuration. For a previous 17 test, change the existing
+environment file to `postgres18` before creating it. The old data remains in
+`/mnt/lima-pgdata/postgres`; no disk reset or deletion is necessary. PostgreSQL
+major versions cannot use one another's data without a proper upgrade.
 
 The parent data directory allows traversal by the container's PostgreSQL user;
 the PostgreSQL data directory inside it remains private (mode 0700). This is
