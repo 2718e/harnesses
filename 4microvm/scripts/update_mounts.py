@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replace a stopped Lima instance's mounts with the mounts from a source template.
+"""Replace a stopped Lima instance's mounts with the complete desired list.
 
 The source file is the host-specific mountavm.yaml. The target is the instance
 copy at ~/.lima/<name>/lima.yaml; editing mountavm.yaml alone does not affect an
@@ -70,8 +70,8 @@ def is_ancestor(parent, child):
 
 
 def normalize_mounts(raw_mounts):
-    if not isinstance(raw_mounts, list) or not raw_mounts:
-        fail("source has no mounts")
+    if not isinstance(raw_mounts, list):
+        fail("mounts must be a list")
 
     mounts = []
     for index, raw in enumerate(raw_mounts):
@@ -89,7 +89,10 @@ def normalize_mounts(raw_mounts):
         if not isinstance(writable, bool):
             fail(f"mount #{index + 1} has a non-boolean writable")
 
-        location = os.path.normpath(os.path.expanduser(location))
+        location = os.path.expanduser(location)
+        if not os.path.isabs(location):
+            fail(f"location is not absolute: {location}")
+        location = os.path.realpath(location)
         mount_point = os.path.normpath(mount_point)
 
         if not os.path.isabs(location):
@@ -99,13 +102,13 @@ def normalize_mounts(raw_mounts):
         if not os.path.exists(location):
             fail(f"location does not exist on the host: {location}")
 
-        mounts.append(
-            {
-                "location": location,
-                "mountPoint": mount_point,
-                "writable": writable,
-            }
-        )
+        normalized = dict(raw)
+        normalized.update(location=location, mountPoint=mount_point, writable=writable)
+        # Accept the old local config entry only if it exactly repeats the
+        # required mount. This lets existing mountavm.yaml files keep working.
+        if normalized in mounts and mount_point == "/opt/agent-config":
+            continue
+        mounts.append(normalized)
 
     for index, mount in enumerate(mounts):
         for other in mounts[index + 1:]:
@@ -116,6 +119,31 @@ def normalize_mounts(raw_mounts):
                     fail(f"overlapping {key}: {mount[key]} and {other[key]}")
 
     return mounts
+
+
+def desired_configuration(source):
+    """Resolve the tracked required mounts and host-specific mount list."""
+    source_data = load_yaml(source)
+    if not isinstance(source_data, dict):
+        fail("source is not a mapping")
+    base_path = Path(__file__).resolve().parent.parent / "agentvm.yaml"
+    bases = source_data.get("base")
+    if bases != ["./agentvm.yaml"]:
+        fail("mountavm.yaml must use only ./agentvm.yaml as its base")
+    base_data = load_yaml(base_path)
+    required = base_data.get("mounts", [])
+    if not isinstance(required, list):
+        fail("base mounts must be a list")
+    required = [dict(mount) for mount in required]
+    config_dir = str(base_path.parent / "agent-config")
+    for mount in required:
+        if mount.get("location") == "{{.Param.AgentConfig}}":
+            mount["location"] = config_dir
+    local_mounts = source_data.get("mounts", [])
+    if not isinstance(local_mounts, list):
+        fail("local mounts must be a list")
+    combined = normalize_mounts(required + local_mounts)
+    return source_data, base_path, combined, config_dir
 
 
 def main():
@@ -138,10 +166,7 @@ def main():
         fail(f"instance YAML not found: {target}")
 
     source = Path(args.source).expanduser()
-    source_data = load_yaml(source)
-    if not isinstance(source_data, dict):
-        fail(f"source is not a mapping: {source}")
-    mounts = normalize_mounts(source_data.get("mounts"))
+    _, _, mounts, _ = desired_configuration(source)
 
     target_data = load_yaml(target)
     if not isinstance(target_data, dict):

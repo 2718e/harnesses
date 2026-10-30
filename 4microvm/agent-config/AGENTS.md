@@ -17,8 +17,8 @@ You are running inside a Lima VM, not on the host. The host filesystem is visibl
 
 ## Containers
 
-- Use rootless nerdctl, not Docker: nerdctl run, nerdctl build, nerdctl compose.
-- There is no Docker Engine or docker.sock. Docker-only project scripts will not work as-is.
+- Use rootless Docker and Docker Compose: docker run, docker build, docker compose.
+- The Docker daemon runs as the VM user; the system Docker socket is disabled.
 
 ## Languages
 

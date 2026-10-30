@@ -10,7 +10,7 @@ create-db-disk size="20GiB":
 
 # Create and start the VM from the host-specific mount definition.
 create:
-    limactl start --name=agentvm ./mountavm.yaml
+    python3 scripts/start_vm.py create mountavm.yaml
 
 start:
     limactl start agentvm
@@ -26,8 +26,7 @@ restart:
 # created pgdata disk is retained. Ensure it exists before deleting the VM.
 recreate:
     limactl disk list --json | python3 scripts/check_db_disk.py
-    limactl delete --force agentvm
-    limactl start --name=agentvm ./mountavm.yaml
+    python3 scripts/start_vm.py recreate mountavm.yaml
 
 delete:
     limactl delete --force agentvm

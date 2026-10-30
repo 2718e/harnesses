@@ -6,6 +6,13 @@ masked, and the agent is not added to the Docker group. Rootless Docker uses
 Linux user namespaces and does not make the VM a substitute for a security
 boundary. The guest user manager uses lingering to start services at boot.
 
+The tracked VM definition declares the read-only `/opt/agent-config` mount.
+The `just` launcher derives its host path from this checkout and combines it
+with the optional mounts in `mountavm.yaml`. An identical legacy entry in the
+local file is accepted; conflicts and overlapping mounts are rejected. Both
+creation and `just update-mounts` require Python and PyYAML on the host. Keep
+the host checkout available while the VM is running: the mount is live.
+
 ## Persistent disk and VM lifecycle
 
 Create the separate 20 GiB Lima disk once, before creating the VM:

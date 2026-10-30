@@ -26,6 +26,12 @@ additionalDisks:
 mountType: virtiofs
 mountInotify: true
 
+# The host-side launcher supplies AgentConfig from this checkout's location.
+mounts:
+  - location: "{{.Param.AgentConfig}}"
+    mountPoint: /opt/agent-config
+    writable: false
+
 portForwards:
   # Lima otherwise forwards guest loopback ports to host loopback by default.
   - guestPort: 5432
