@@ -21,9 +21,6 @@ mountType: virtiofs
 mountInotify: true
 
 portForwards:
-  - guestPort: 3081
-    hostPort: 3081
-    hostIP: 127.0.0.1
   # Codex browser-login callback (host browser -> guest Codex).
   - guestPort: 1455
     hostPort: 1455

@@ -1,0 +1,1 @@
+When working on this project specifically - wheich is a setup script for agent harnesses, be careful about considering which AGENTS.md or other files relate to you directly and which are files that will be copied and mounted in the VM (i.e. some may be configuration and source for what is being built here, rather than instructions for you)

@@ -17,9 +17,10 @@ if [ ! -r /opt/agent-config/versions.env ]; then
 fi
 source /opt/agent-config/versions.env
 
-AGENT_USER="$(getent passwd 1000 | cut -d: -f1 || true)"
-if [ -z "$AGENT_USER" ]; then
-    echo "could not find the Lima user with uid 1000" >&2
+# Lima expands this template in provisioning scripts for the configured user.
+AGENT_USER="{{.User}}"
+if ! id "$AGENT_USER" >/dev/null 2>&1; then
+    echo "could not find the Lima guest user: $AGENT_USER" >&2
     exit 1
 fi
 AGENT_GROUP="$(id -gn "$AGENT_USER")"
@@ -32,6 +33,7 @@ PACKAGES=(
     curl
     git
     build-essential
+    cmake
     pkg-config
     jq
     ripgrep
@@ -83,9 +85,14 @@ install -m 0644 /opt/agent-config/harness/pnpm-lock.yaml /opt/harness/pnpm-lock.
 install -m 0644 /opt/agent-config/harness/pnpm-workspace.yaml /opt/harness/pnpm-workspace.yaml
 (
     cd /opt/harness
-    pnpm install --prod --frozen-lockfile --store-dir /tmp/pnpm-store
+    HOME=/root pnpm install --prod --frozen-lockfile --store-dir /tmp/pnpm-store
 )
 rm -rf /tmp/pnpm-store
+
+if [ ! -f /opt/harness/node_modules/@deepseek-ai/dsh/lib/bin.js ]; then
+    echo "dsh is missing from /opt/harness; pnpm install did not complete" >&2
+    exit 1
+fi
 
 cat > /usr/local/bin/dsh <<'EOF'
 #!/bin/sh
@@ -105,8 +112,7 @@ done
 [ -d /new-projects ] || install -d -m 0775 -o "$AGENT_USER" -g "$AGENT_GROUP" /new-projects
 [ -d /datasets ] || install -d -m 0555 /datasets
 
-# Environment for interactive shells. The dsh user service sets its own values
-# explicitly; this file is for shells opened through limactl or the dsh terminal.
+# Environment for interactive shells opened through limactl.
 cat > /etc/profile.d/agent-env.sh <<'EOF'
 export PNPM_HOME="$HOME/.local/share/pnpm"
 export NPM_CONFIG_PREFIX="$HOME/.local"
@@ -119,10 +125,6 @@ export NARB_NATIVE_CACHE_DIR="$HOME/.cache/native-binaries"
 export GIT_TERMINAL_PROMPT=0
 EOF
 chmod 0644 /etc/profile.d/agent-env.sh
-
-if ! loginctl enable-linger "$AGENT_USER"; then
-    echo "warning: could not enable lingering for $AGENT_USER" >&2
-fi
 
 # Remove the agent's sudo authorization. Lima needs passwordless sudo during
 # first boot, but the agent must not keep it afterwards.

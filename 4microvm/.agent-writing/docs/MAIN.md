@@ -14,7 +14,7 @@ The VM has its own kernel, so rootless containers work without exposing the host
   The QEMU-packaged qemu-virtiofsd is not a substitute. If virtiofsd is not
   available, change mountType in agentvm.yaml to 9p.
 - python3-yaml on the host for scripts/update_mounts.py.
-- Host ports 3081 and 1455 free. 1455 is only for the Codex login callback.
+- Host port 1455 free if using the Codex browser login callback.
 
 ## First setup
 
@@ -22,7 +22,7 @@ The VM has its own kernel, so rootless containers work without exposing the host
 cp mountavm.example.yaml mountavm.yaml
 $EDITOR mountavm.yaml
 just create
-just url
+just shell
 ~~~
 
 mountavm.yaml is host-specific and gitignored. It must contain every mount,
@@ -39,11 +39,9 @@ mkdir -p /media/dan/data/dev/_new
 just start
 just stop
 just shell
-just url
-just logs
 ~~~
 
-dsh listens on guest and host port 3081. The container version can keep 3080.
+Inside the shell, change to a mounted project and run `codex` or `dsh`.
 
 ## Mounts
 
@@ -65,7 +63,7 @@ host, adding a mount entry, and running the commands above.
 ## Harnesses
 
 Codex is installed under /opt/harness from the same pnpm project as dsh.
-Log in from a dsh terminal or limactl shell:
+Log in from the VM shell:
 
 ~~~
 codex login --device-auth
@@ -73,8 +71,7 @@ codex login --device-auth
 
 The browser flow also works; guest port 1455 is forwarded to the host.
 
-dsh runs as a user systemd service. Its token URL is printed to the user
-journal and can be read with just url.
+Run `dsh` interactively in the VM shell. Neither harness starts automatically.
 
 ## Containers and privileges
 
@@ -99,9 +96,17 @@ uv, pnpm/npm and rustup still work.
 - AGENTS.md: it is symlinked from /opt/agent-config, so changes apply to new
   sessions without a restart.
 
+## Troubleshooting
+
+Run `just doctor` to check the installed commands and cloud-init status. If
+provisioning failed, inspect `/var/log/cloud-init-output.log` as root through
+Lima's administrative access. The guest user loses sudo after provisioning.
+Provisioning scripts are stored in the instance when it is created, so edits
+need a new instance. `just recreate` deletes guest state and logins.
+
 ## Deliberately not included
 
 - Docker Engine.
 - Firecracker or other microVMs.
 - Cross-harness subagents.
-- ttyd or tmux; Codex is used from the dsh terminal sidebar.
+- ttyd or tmux.

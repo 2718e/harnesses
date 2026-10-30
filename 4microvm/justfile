@@ -37,16 +37,13 @@ update-mounts:
     python3 scripts/update_mounts.py agentvm mountavm.yaml
     @echo "Mounts updated. Run 'just start'."
 
-# Copy tracked config into the guest and restart dsh.
+# Copy tracked config into the guest.
 sync-config:
-    limactl shell agentvm env XDG_RUNTIME_DIR="/run/user/$(id -u)" bash -lc 'install -m 0644 /opt/agent-config/codex/config.toml "$HOME/.codex/config.toml" && ln -sfn /opt/agent-config/AGENTS.md "$HOME/.codex/AGENTS.md" && ln -sfn /opt/agent-config/AGENTS.md "$HOME/.dsh/AGENTS.md" && systemctl --user restart dsh'
+    limactl shell agentvm bash -lc 'mkdir -p "$HOME/.codex" "$HOME/.dsh" && install -m 0644 /opt/agent-config/codex/config.toml "$HOME/.codex/config.toml" && ln -sfn /opt/agent-config/AGENTS.md "$HOME/.codex/AGENTS.md" && ln -sfn /opt/agent-config/AGENTS.md "$HOME/.dsh/AGENTS.md"'
 
-# Print the authenticated dsh URL (port 3081).
-url:
-    @limactl shell agentvm env XDG_RUNTIME_DIR="/run/user/$(id -u)" journalctl --user -u dsh -n 200 --no-pager | sed -n 's/.*dsh web: //p' | tail -n1
-
-logs:
-    limactl shell agentvm env XDG_RUNTIME_DIR="/run/user/$(id -u)" journalctl --user -u dsh -f
+# Show the installed tools and the most recent cloud-init status.
+doctor:
+    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv nerdctl; do printf "%s: " "$tool"; command -v "$tool" || true; done; cloud-init status --long || true'
 
 snapshot:
     limactl snapshot create agentvm --tag baseline

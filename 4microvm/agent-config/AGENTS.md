@@ -35,6 +35,5 @@ You are running inside a Lima VM, not on the host. The host filesystem is visibl
 
 ## Harnesses
 
-- dsh web listens on port 3081. The host reaches it through Lima port forwarding.
-- Codex is available from the dsh terminal sidebar. Run codex there.
+- Codex and dsh are available as commands in the VM shell.
 - Do not write into read-only mounts or use tricks to bypass mount permissions.
