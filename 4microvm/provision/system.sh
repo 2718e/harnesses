@@ -51,9 +51,54 @@ if [ -x /usr/bin/fdfind ]; then
     ln -sfn /usr/bin/fdfind /usr/local/bin/fd
 fi
 
-if ! command -v nerdctl >/dev/null 2>&1 && ! command -v nerdctl.lima >/dev/null 2>&1; then
-    echo "warning: nerdctl not found; rootless containerd may not be installed" >&2
+# Docker's official Debian packages include the Compose v2 plugin.
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+printf 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian trixie stable\n' > /etc/apt/sources.list.d/docker.list
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+usermod -aG docker "$AGENT_USER"
+systemctl enable --now docker
+
+# The disk and its environment file are intentionally independent of the VM.
+# The service stays inactive until the user configures that file.
+if ! mountpoint -q /mnt/lima-pgdata; then
+    echo "persistent pgdata disk is not mounted; refusing to provision database storage" >&2
+    exit 1
 fi
+install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/config
+install -d -m 0755 /mnt/lima-pgdata/postgres
+install -d -m 0755 /etc/shared-dev-db
+cat > /etc/shared-dev-db/compose.yaml <<'EOF'
+services:
+  postgres:
+    # systemd starts it only after checking the persistent disk is mounted.
+    restart: "no"
+EOF
+cat > /etc/systemd/system/shared-dev-db.service <<'EOF'
+[Unit]
+Description=Shared development PostgreSQL
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+RequiresMountsFor=/mnt/lima-pgdata
+ConditionPathIsMountPoint=/mnt/lima-pgdata
+ConditionPathExists=/mnt/lima-pgdata/config/shared-dev-db.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/projects/shared-dev-db
+ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /projects/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d
+ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /projects/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable shared-dev-db.service
 
 # Node is installed from a pinned upstream tarball, matching the container setup.
 NODE_TARBALL="node-v$NODE_VERSION-linux-x64.tar.xz"

@@ -4,6 +4,10 @@ set shell := ["bash", "-uc"]
 default:
     @just --list
 
+# Create the persistent disk once. Never run this to replace an existing disk.
+create-db-disk size="20GiB":
+    limactl disk create pgdata --size {{size}}
+
 # Create and start the VM from the host-specific mount definition.
 create:
     limactl start --name=agentvm ./mountavm.yaml
@@ -18,9 +22,11 @@ restart:
     -limactl stop agentvm
     limactl start agentvm
 
-# Delete and recreate the VM. Guest state and auth are lost.
+# Delete and recreate the VM. Guest state and auth are lost; the separately
+# created pgdata disk is retained. Ensure it exists before deleting the VM.
 recreate:
-    -limactl delete --force agentvm
+    limactl disk list --json | python3 scripts/check_db_disk.py
+    limactl delete --force agentvm
     limactl start --name=agentvm ./mountavm.yaml
 
 delete:
@@ -43,7 +49,7 @@ sync-config:
 
 # Show the installed tools and the most recent cloud-init status.
 doctor:
-    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv nerdctl; do printf "%s: " "$tool"; command -v "$tool" || true; done; cloud-init status --long || true'
+    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv docker; do printf "%s: " "$tool"; command -v "$tool" || true; done; docker compose version; findmnt /mnt/lima-pgdata; cloud-init status --long || true'
 
 snapshot:
     limactl snapshot create agentvm --tag baseline

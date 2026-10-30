@@ -11,16 +11,25 @@ cpus: 4
 memory: 8GiB
 disk: 60GiB
 
-# Lima's rootless containerd provides nerdctl, BuildKit, runc and CNI.
-# No Docker daemon is installed.
+# Docker manages its own containerd in the guest.
 containerd:
-  user: true
+  user: false
   system: false
+
+# Created separately with `just create-db-disk`; it survives VM deletion.
+# Keep the name short: older Lima versions have an ext4 label length bug.
+additionalDisks:
+  - name: pgdata
+    format: true
+    fsType: ext4
 
 mountType: virtiofs
 mountInotify: true
 
 portForwards:
+  # Lima otherwise forwards guest loopback ports to host loopback by default.
+  - guestPort: 5432
+    ignore: true
   # Codex browser-login callback (host browser -> guest Codex).
   - guestPort: 1455
     hostPort: 1455
