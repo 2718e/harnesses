@@ -10,7 +10,11 @@ The tracked VM definition declares the read-only `/opt/agent-config` mount.
 The `just` launcher derives its host path from this checkout and combines it
 with the optional mounts in `mountavm.yaml`. An identical legacy entry in the
 local file is accepted; conflicts and overlapping mounts are rejected. Both
-creation and `just update-mounts` require Python and PyYAML on the host. Keep
+creation and `just update-mounts` use the uv project in `scripts/`; install uv
+on the host before using these recipes. The first run needs access to the locked
+Python dependencies (or a populated uv cache). Run `just test` for the host-tool
+tests. `just update-mounts` validates the proposed instance configuration with
+Lima before replacing it. Keep
 the host checkout available while the VM is running: the mount is live.
 
 ## Persistent disk and VM lifecycle

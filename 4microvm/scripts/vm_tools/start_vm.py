@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 import yaml
-from update_mounts import desired_configuration, fail
+from .mounts import desired_configuration, fail
 
 
 def main():

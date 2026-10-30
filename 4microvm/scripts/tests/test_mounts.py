@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 
 import yaml
-from update_mounts import desired_configuration
+from vm_tools.mounts import desired_configuration
 
 
 class MountMergeTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class MountMergeTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.source = Path(self.temp.name) / "mounts.yaml"
-        self.config = Path(__file__).resolve().parent.parent / "agent-config"
+        self.config = Path(__file__).resolve().parents[2] / "agent-config"
 
     def resolve(self, mounts):
         self.source.write_text(yaml.safe_dump({"base": ["./agentvm.yaml"], "mounts": mounts}))

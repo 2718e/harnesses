@@ -10,7 +10,7 @@ create-db-disk size="20GiB":
 
 # Create and start the VM from the host-specific mount definition.
 create:
-    python3 scripts/start_vm.py create mountavm.yaml
+    uv run --locked --directory scripts python -m vm_tools.start_vm create ../mountavm.yaml
 
 start:
     limactl start agentvm
@@ -25,8 +25,8 @@ restart:
 # Delete and recreate the VM. Guest state and auth are lost; the separately
 # created pgdata disk is retained. Ensure it exists before deleting the VM.
 recreate:
-    limactl disk list --json | python3 scripts/check_db_disk.py
-    python3 scripts/start_vm.py recreate mountavm.yaml
+    limactl disk list --json | uv run --locked --directory scripts python -m vm_tools.check_db_disk
+    uv run --locked --directory scripts python -m vm_tools.start_vm recreate ../mountavm.yaml
 
 delete:
     limactl delete --force agentvm
@@ -39,7 +39,7 @@ status:
 
 # Sync mountavm.yaml into the stopped instance. Fails if the VM is running.
 update-mounts:
-    python3 scripts/update_mounts.py agentvm mountavm.yaml
+    uv run --locked --directory scripts python -m vm_tools.update_mounts agentvm ../mountavm.yaml
     @echo "Mounts updated. Run 'just start'."
 
 # Copy tracked config into the guest.
@@ -52,3 +52,7 @@ doctor:
 
 snapshot:
     limactl snapshot create agentvm --tag baseline
+
+# Run host-side Python tests.
+test:
+    uv run --locked --directory scripts python -m unittest discover -s tests
