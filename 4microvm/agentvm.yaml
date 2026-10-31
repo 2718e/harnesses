@@ -16,10 +16,10 @@ containerd:
   user: false
   system: false
 
-# Created separately with `just create-db-disk`; it survives VM deletion.
+# Created automatically by `just setup`; it survives VM deletion.
 # Keep the name short: older Lima versions have an ext4 label length bug.
 additionalDisks:
-  - name: pgdata
+  - name: agentvm-db
     format: true
     fsType: ext4
 
@@ -30,6 +30,9 @@ mountInotify: true
 mounts:
   - location: "{{.Param.AgentConfig}}"
     mountPoint: /opt/agent-config
+    writable: false
+  - location: "{{.Param.SharedDevDB}}"
+    mountPoint: /projects/shared-dev-db
     writable: false
 
 portForwards:

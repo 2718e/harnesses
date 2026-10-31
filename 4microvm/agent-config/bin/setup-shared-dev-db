@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Guest integration; storage and service policy belong to the harness.
+set -euo pipefail
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/docker.sock"
+export COMPOSE_PROJECT_NAME=shared-dev-db
+storage=/mnt/lima-agentvm-db
+source=/projects/shared-dev-db
+runtime=$storage/shared-dev-db
+mountpoint -q "$storage" || { echo "Persistent database disk is not mounted" >&2; exit 1; }
+if [[ ! -f $source/compose.yaml || ! -f $source/scripts/configure.py ]]; then
+    echo "Mount the current shared-dev-db repository at $source before running setup." >&2
+    exit 1
+fi
+# Snapshot runtime files, including uncommitted edits, without copying host
+# credentials/data/Git metadata. Normal boots need only this persistent copy.
+# Stop before updating files used by ExecStop as well as ExecStart.
+systemctl --user stop shared-dev-db.service
+mkdir -p "$runtime/scripts"
+install -m 0644 "$source/compose.yaml" "$runtime/compose.yaml"
+for script in configure.py create-db.sh setup.sh; do
+    install -m 0755 "$source/scripts/$script" "$runtime/scripts/$script"
+done
+python3 "$runtime/scripts/configure.py" \
+    --env-file "$storage/config/shared-dev-db.env" \
+    --data-dir "$storage/postgres18" --require-data-dir \
+    --connection-file "$storage/config/connection.env"
+systemctl --user enable shared-dev-db.service
+# Restart a previous failed retry loop too, and wait for the health check.
+systemctl --user restart shared-dev-db.service
+echo 'Shared database ready. Open a new shell and run: shared-db my_project'

@@ -1,5 +1,6 @@
 # Copy to mountavm.yaml and replace /home/USER with the real host paths.
-# The required agent-config mount is supplied by agentvm.yaml and the launcher.
+# Required agent-config and shared-dev-db mounts are supplied automatically.
+# The shared-dev-db source defaults to a sibling checkout of harnesses.
 # Do not make mount locations or mount points overlap.
 # To let the agent work on the harness itself, mount a separate host clone of
 # the harness repository here; do not mount the active harness checkout.
@@ -12,6 +13,7 @@ mounts:
     mountPoint: "/projects/property-search"
     writable: true
 
+  # Optional: choose a different source checkout for the shared database.
   - location: "/home/USER/dev/shared-dev-db"
     mountPoint: "/projects/shared-dev-db"
     writable: false

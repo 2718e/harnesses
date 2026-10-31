@@ -1,135 +1,126 @@
 # Agent VM and persistent database
 
-The VM uses rootless Docker Engine and Compose. Both the Docker daemon and the
-database service run as the guest user; the system Docker daemon and socket are
-masked, and the agent is not added to the Docker group. Rootless Docker uses
-Linux user namespaces and does not make the VM a substitute for a security
-boundary. The guest user manager uses lingering to start services at boot.
-
-The tracked VM definition declares the read-only `/opt/agent-config` mount.
-The `just` launcher derives its host path from this checkout and combines it
-with the optional mounts in `mountavm.yaml`. An identical legacy entry in the
-local file is accepted; conflicts and overlapping mounts are rejected. Both
-creation and `just update-mounts` use the uv project in `scripts/`; install uv
-on the host before using these recipes. The first run needs access to the locked
-Python dependencies (or a populated uv cache). Run `just test` for the host-tool
-tests. `just update-mounts` validates the proposed instance configuration with
-Lima before replacing it. Keep
-the host checkout available while the VM is running: the mount is live.
-
-## Persistent disk and VM lifecycle
-
-Create the separate 20 GiB Lima disk once, before creating the VM:
+With Lima, uv, just, and virtiofsd installed on the host, put `harnesses` and
+`shared-dev-db` checkouts beside each other, then run from this directory:
 
 ```sh
-just create-db-disk
-just create
+just setup
 ```
 
-An optional size can be passed to `just create-db-disk`, for example
-`just create-db-disk 40GiB`. Lima stores this disk in its own disk directory
-under `LIMA_HOME`; it is not currently placed under
-`/media/dan/data/databases`. Check the available storage there before creating
-it. The disk appears in the guest at `/mnt/lima-pgdata` as an ext4 filesystem.
+This creates the persistent 20 GiB `agentvm-db` disk if missing, creates or starts
+`agentvm`, generates private database credentials once, and waits for PostgreSQL
+to become healthy. `just create` is an alias. Rerunning preserves the disk,
+credentials, and databases; it refreshes the database runtime files and restarts
+the database service, briefly interrupting connections.
 
-`just recreate` deletes the VM and its guest state, including logins, but not
-the separate `pgdata` disk. It checks for that disk first. `just delete` also
-leaves the disk in place. Never run `limactl disk delete pgdata` if its data is
-needed. Back up the database independently; a separate disk is not a backup.
+No `mountavm.yaml` is needed for the base VM and database. To add project mounts,
+copy `mountavm.example.yaml` to `mountavm.yaml` and edit the paths before setup.
+A read-only `/projects/shared-dev-db` entry can select another source checkout;
+otherwise the launcher uses the sibling repository. The launcher supplies
+`/opt/agent-config` from this harness checkout. Keep the harness checkout
+available while the VM runs, since its config mount is live. Do not mount the
+active harness checkout as a writable project; use a separate clone instead.
+Conflicting and overlapping mounts are rejected.
 
-An existing instance uses its own saved Lima configuration and its original
-provisioning. Create the disk and recreate the VM to apply these changes;
-`update-mounts` only updates shared directory mounts, not disk or provisioning
-settings. Existing data on the old VM's primary disk is not transferred. The
-persistent disk records the guest UID, GID, and subordinate UID/GID ranges on
-first provisioning. A later VM with a different mapping refuses to start the
-database rather than silently using the wrong file owners. Existing database
-files with no mapping record, such as data made by rootful Docker, require a
-separate migration; do not change their ownership recursively without a backup.
-
-## Database service
-
-On first provisioning, the VM clones the committed state of the read-only
-repository at `/projects/shared-dev-db` into
-`/mnt/lima-pgdata/shared-dev-db`. Commit the desired database-project changes
-before recreating the VM: a Git clone does not include uncommitted edits.
-The service uses the persistent checkout, so later boots and VM recreations do
-not depend on the source mount. It is not updated automatically. To update it,
-stop the database service and deliberately fetch and fast-forward the checkout;
-the initial `origin` is the mounted repository and can later be changed to a
-remote URL. Whether the agent can edit a separate project mount is independent
-of this checkout.
-
-After creating the VM, in its shell create a private configuration on the
-persistent disk:
+## Use the database
 
 ```sh
-cd /mnt/lima-pgdata/shared-dev-db
-umask 077
-# Only if no configuration file exists; preserve an existing password.
-cp .env.example /mnt/lima-pgdata/config/shared-dev-db.env
-# Edit the file: choose a private POSTGRES_PASSWORD and set:
-# POSTGRES_DATA_DIR=/mnt/lima-pgdata/postgres18
-# Remove any POSTGRES_IMAGE override for the old 17 image.
+just shell
+shared-db my_project
+# SHARED_DEV_DB_BASE_URL already includes credentials and a trailing slash.
+# Supply a project-specific URL to your application:
+export DATABASE_URL="${SHARED_DEV_DB_BASE_URL}my_project"
 ```
 
-Start the database for the first time with:
+`shared-db` creates the named database or reports that it already exists. It
+works from any directory. Database names start with a letter or underscore,
+contain letters, digits or underscores, and are at most 63 characters.
+The base URL is exported in guest login shells without choosing a database
+for every project. For a process that does not read shell profiles, source
+`/mnt/lima-agentvm-db/config/connection.env` explicitly. Both this file and
+`shared-dev-db.env` contain credentials and are private to the guest user.
+PostgreSQL listens on guest loopback; its port is not forwarded to the host.
+
+## Persistence and lifecycle
+
+`just stop` and `just start` handle normal use; the database starts at boot.
+`just delete` removes only the VM. `just recreate` rebuilds guest state and
+logins while retaining `agentvm-db`, and refuses to delete an existing VM if its
+persistent disk is missing. Both setup and recreation validate the proposed
+configuration before creating disks or deleting an instance.
+
+For a fresh database, stop the VM and run `just delete-db` to permanently
+delete the entire `agentvm-db` disk, including all databases and credentials.
+`just nuke` deletes the VM first, then that disk. Run `just setup` afterward
+to create both from scratch. These commands do not affect a host-side database.
+
+Lima keeps the disk under `LIMA_HOME`, rather than
+`/media/dan/data/databases`; check available storage there. To choose another
+initial size, run `just create-db-disk 40GiB` before `just setup`. The automatic
+path never resizes or replaces an existing disk. Never delete `agentvm-db` while its
+data is needed. Back up PostgreSQL independently; a separate disk is not a backup.
+
+The persistent disk stores:
+
+- `postgres18/`: PostgreSQL data, mounted at `/var/lib/postgresql` in the container.
+- `config/shared-dev-db.env`: instance settings and generated password.
+- `config/connection.env`: shell export of the connection base URL.
+- `config/rootless-identity`: guest UID/GID and subordinate ID mapping.
+- `shared-dev-db/`: a snapshot of the source repository's Compose file and runtime scripts.
+
+Setup copies the current runtime files, including uncommitted edits, without
+copying host credentials, database files, or Git metadata. Normal boots use the
+persistent snapshot and do not need the source database mount. Run `just setup`
+after deliberately changing database runtime code. It preserves settings; edits
+to the source `.env` are unrelated to the VM instance.
+
+An older VM needs `just recreate` to receive these provisioning and service
+changes; setup does not rewrite a saved instance's disk/provisioning definition.
+`just update-mounts` updates only shared directory mounts in a stopped VM, then
+`just start` uses them. An identical legacy required mount is accepted.
+
+Existing credentials are preserved. Settings pointing at the older `postgres/`
+path are rejected: review the settings and migrate old data deliberately before
+using `postgres18/`. PostgreSQL major versions cannot use one another's data
+without an upgrade. The earlier manual `postgres18-ready` marker is no longer
+needed. If database files exist without settings or a rootless identity record,
+setup fails instead of inventing new credentials or recursively changing owners.
+A changed rootless mapping also fails. None of these cases automatically deletes
+data.
+
+## Runtime and troubleshooting
+
+Docker and Compose run as the guest user with rootless Docker. The system daemon
+and socket are masked, and the agent is not in the Docker group. User lingering
+starts the services at boot. Rootless containers do not make this VM a substitute
+for a security boundary.
+
+The systemd user service checks the persistent mount and configuration, then
+waits for Compose health. It retries failed startup; the container's own restart
+policy is disabled to prevent Docker starting it before the disk is mounted.
+To restart after a container crash, run
+`systemctl --user restart shared-dev-db.service` in the guest.
 
 ```sh
-docker compose --project-name shared-dev-db \
-  --env-file /mnt/lima-pgdata/config/shared-dev-db.env config --quiet
-# After confirming the checkout uses PostgreSQL 18 and the data path above:
-touch /mnt/lima-pgdata/config/postgres18-ready
-systemctl --user start shared-dev-db.service
-COMPOSE_ENV_FILE=/mnt/lima-pgdata/config/shared-dev-db.env \
-  ./scripts/create-db.sh my_project
-```
-
-The user systemd service starts the Compose project on boot and retries if the
-disk, configuration, checkout, or database health check is not ready. It uses an
-override to prevent Docker from starting the database before the disk is
-mounted. The database container is not automatically restarted after a crash;
-restart it with `systemctl --user restart shared-dev-db.service`. The data and
-settings persist on the disk. If startup fails, inspect
-`systemctl --user status shared-dev-db.service` and
-`journalctl --user -u shared-dev-db.service`.
-The data directory and password in this example are separate from the host
-instance. Keep the database bound to guest loopback unless remote access is
-deliberately configured.
-
-The `postgres18-ready` file is a one-time opt-in to automatic startup after
-checking the 18 configuration. For a previous 17 test, change the existing
-environment file to `postgres18` before creating it. The old data remains in
-`/mnt/lima-pgdata/postgres`; no disk reset or deletion is necessary. PostgreSQL
-major versions cannot use one another's data without a proper upgrade.
-
-The parent data directory allows traversal by the container's PostgreSQL user;
-the PostgreSQL data directory inside it remains private (mode 0700). This is
-needed because the image starts as container root, then switches to its own
-PostgreSQL user before initialization.
-
-## Verify after provisioning
-
-Run these commands in the guest shell:
-
-```sh
-docker info --format '{{json .SecurityOptions}}'
+just doctor
+just shell
 systemctl --user status docker.service shared-dev-db.service --no-pager
-systemctl is-enabled docker.service docker.socket
-id
-sudo -n true  # should fail
-docker -H unix:///var/run/docker.sock info  # should fail
-findmnt /mnt/lima-pgdata
+journalctl --user -u shared-dev-db.service
 ```
 
-Docker's security options should include `rootless`, and the agent must not be
-in the `docker` group. A writable project mount can be tested by creating a
-throwaway file both directly and in a rootless container, then comparing their
-numeric owners with `stat -c '%n %u:%g' FILE` on host and guest. Container
-images running as non-root may use subordinate IDs and produce different host
-ownership; test the actual images used by your projects.
+`docker info --format '{{json .SecurityOptions}}'` should include `rootless`.
+`sudo -n true` and `docker -H unix:///var/run/docker.sock info` should fail.
+A writable project mount can be tested by creating a throwaway file directly and
+in a rootless container, then comparing numeric owners with `stat` on host and
+guest. Images running as non-root may produce subordinate IDs; test your actual
+project images.
 
-To test persistence, create a project database with the helper, add a small test
-table, run `just recreate` on the host, and query the table again in the new
-VM. Check the service logs above if it does not start. `just recreate` deletes
-the VM's primary disk and logins; only the separate `pgdata` disk is retained.
+Run `just test` for host-side tests. They check mount merging, setup reruns, and
+refusal before destructive recreation. A full persistence check requires Lima:
+create a project database and test table, run `just recreate`, then query it in
+the new VM. Recreation deletes the primary VM disk and logins.
+
+The disk is named `agentvm-db` because disk names are shared within `LIMA_HOME`.
+The short name also avoids older Lima ext4 label bugs. An existing disk named
+`pgdata` is not migrated or deleted by these commands; existing VMs need recreation
+to use the new name.

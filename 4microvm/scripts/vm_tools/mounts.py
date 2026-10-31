@@ -4,6 +4,8 @@ from pathlib import Path
 
 import yaml
 
+DEFAULT_DATABASE_SOURCE = Path(__file__).resolve().parents[4] / "shared-dev-db"
+
 
 def fail(message):
     print(f"error: {message}", file=sys.stderr)
@@ -63,7 +65,7 @@ def normalize_mounts(raw_mounts):
         normalized.update(location=location, mountPoint=mount_point, writable=writable)
         # Accept the old local config entry only if it exactly repeats the
         # required mount. This lets existing mountavm.yaml files keep working.
-        if normalized in mounts and mount_point == "/opt/agent-config":
+        if normalized in mounts and mount_point in ("/opt/agent-config", "/projects/shared-dev-db"):
             continue
         mounts.append(normalized)
 
@@ -80,7 +82,7 @@ def normalize_mounts(raw_mounts):
 
 def desired_configuration(source):
     """Resolve the tracked required mounts and host-specific mount list."""
-    source_data = load_yaml(source)
+    source_data = load_yaml(source) if source.exists() else {"base": ["./agentvm.yaml"]}
     if not isinstance(source_data, dict):
         fail("source is not a mapping")
     base_path = Path(__file__).resolve().parents[2] / "agentvm.yaml"
@@ -92,13 +94,18 @@ def desired_configuration(source):
     if not isinstance(required, list):
         fail("base mounts must be a list")
     required = [dict(mount) for mount in required]
+    local_mounts = source_data.get("mounts", [])
+    if not isinstance(local_mounts, list):
+        fail("local mounts must be a list")
+    # A local entry may choose another checkout; otherwise use the sibling repo.
+    db_mounts = [m for m in local_mounts if isinstance(m, dict) and m.get("mountPoint") == "/projects/shared-dev-db"]
+    db_dir = db_mounts[0].get("location") if db_mounts else str(DEFAULT_DATABASE_SOURCE)
     config_dir = str(base_path.parent / "agent-config")
     for mount in required:
         if mount.get("location") == "{{.Param.AgentConfig}}":
             mount["location"] = config_dir
-    local_mounts = source_data.get("mounts", [])
-    if not isinstance(local_mounts, list):
-        fail("local mounts must be a list")
+        elif mount.get("location") == "{{.Param.SharedDevDB}}":
+            mount["location"] = db_dir
     combined = normalize_mounts(required + local_mounts)
     return source_data, base_path, combined, config_dir
 

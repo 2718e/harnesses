@@ -6,11 +6,14 @@ default:
 
 # Create the persistent disk once. Never run this to replace an existing disk.
 create-db-disk size="20GiB":
-    limactl disk create pgdata --size {{size}}
+    limactl disk create agentvm-db --size {{size}}
 
-# Create and start the VM from the host-specific mount definition.
-create:
-    uv run --locked --directory scripts python -m vm_tools.start_vm create ../mountavm.yaml
+# Create or start the VM, initializing the persistent shared database.
+setup:
+    uv run --locked --directory scripts python -m vm_tools.start_vm setup ../mountavm.yaml
+
+# Backwards-compatible name for the complete setup.
+create: setup
 
 start:
     limactl start agentvm
@@ -23,13 +26,19 @@ restart:
     limactl start agentvm
 
 # Delete and recreate the VM. Guest state and auth are lost; the separately
-# created pgdata disk is retained. Ensure it exists before deleting the VM.
+# created agentvm-db disk is retained. Ensure it exists before deleting the VM.
 recreate:
-    limactl disk list --json | uv run --locked --directory scripts python -m vm_tools.check_db_disk
     uv run --locked --directory scripts python -m vm_tools.start_vm recreate ../mountavm.yaml
 
 delete:
     limactl delete --force agentvm
+
+# Permanently delete all shared databases and credentials. Stop the VM first.
+delete-db:
+    limactl disk delete agentvm-db
+
+# Permanently delete the VM and its persistent database disk.
+nuke: delete delete-db
 
 shell:
     limactl shell agentvm
@@ -48,7 +57,7 @@ sync-config:
 
 # Show the installed tools and the most recent cloud-init status.
 doctor:
-    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv docker; do printf "%s: " "$tool"; command -v "$tool" || true; done; docker compose version; findmnt /mnt/lima-pgdata; cloud-init status --long || true'
+    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv docker; do printf "%s: " "$tool"; command -v "$tool" || true; done; docker compose version; findmnt /mnt/lima-agentvm-db; cloud-init status --long || true'
 
 snapshot:
     limactl snapshot create agentvm --tag baseline

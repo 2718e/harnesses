@@ -20,6 +20,14 @@ You are running inside a Lima VM, not on the host. The host filesystem is visibl
 - Use rootless Docker and Docker Compose: docker run, docker build, docker compose.
 - The Docker daemon runs as the VM user; the system Docker socket is disabled.
 
+## Shared development database
+
+- PostgreSQL is ready on guest loopback. Run `shared-db my_project` from any directory to create a project database; rerunning is safe.
+- `SHARED_DEV_DB_BASE_URL` contains the connection credentials and ends with `/`. Use `DATABASE_URL="${SHARED_DEV_DB_BASE_URL}my_project"` for the project's connection.
+- For non-login processes, source `/mnt/lima-agentvm-db/config/connection.env` first. This file contains credentials; do not print or commit it.
+- The systemd user service is `shared-dev-db.service`. Inspect it with `systemctl --user status shared-dev-db.service` or its user journal.
+- The database data and settings persist on a separate disk across VM recreation. Do not delete them or change the instance password as part of project setup.
+
 ## Languages
 
 - Python: use uv. The project environment is .venv-agent-container, so the host .venv is never touched.

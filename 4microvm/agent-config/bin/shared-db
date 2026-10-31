@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
+export COMPOSE_PROJECT_NAME=shared-dev-db
+export COMPOSE_ENV_FILE=/mnt/lima-agentvm-db/config/shared-dev-db.env
+exec /mnt/lima-agentvm-db/shared-dev-db/scripts/create-db.sh "$@"

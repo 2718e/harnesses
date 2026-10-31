@@ -72,22 +72,22 @@ fi
 loginctl enable-linger "$AGENT_USER"
 
 # The disk and its environment file are intentionally independent of the VM.
-# The service stays inactive until the user configures that file.
-if ! mountpoint -q /mnt/lima-pgdata; then
-    echo "persistent pgdata disk is not mounted; refusing to provision database storage" >&2
+# User provisioning initializes private settings and starts the service.
+if ! mountpoint -q /mnt/lima-agentvm-db; then
+    echo "persistent agentvm-db disk is not mounted; refusing to provision database storage" >&2
     exit 1
 fi
-install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/config
+install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/config
 # The disk root belongs to root. Create an empty destination the guest user
-# can clone into, without changing ownership of an existing checkout.
-if [ ! -e /mnt/lima-pgdata/shared-dev-db ]; then
-    install -d -m 0755 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/shared-dev-db
+# can snapshot runtime files into, without changing existing ownership.
+if [ ! -e /mnt/lima-agentvm-db/shared-dev-db ]; then
+    install -d -m 0755 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/shared-dev-db
 fi
-if [ ! -d /mnt/lima-pgdata/postgres ]; then
-    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/postgres
+if [ ! -d /mnt/lima-agentvm-db/postgres ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/postgres
 fi
-if [ ! -d /mnt/lima-pgdata/postgres18 ]; then
-    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-pgdata/postgres18
+if [ ! -d /mnt/lima-agentvm-db/postgres18 ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/postgres18
 fi
 # Rootless container file owners depend on the guest UID and subordinate ID
 # ranges. Refuse to attach old data with a different or unknown mapping.
@@ -97,7 +97,7 @@ if [ -z "$subuid" ] || [ -z "$subgid" ]; then
     echo "missing subordinate UID/GID ranges for $AGENT_USER" >&2
     exit 1
 fi
-identity_file=/mnt/lima-pgdata/config/rootless-identity
+identity_file=/mnt/lima-agentvm-db/config/rootless-identity
 identity=$(printf 'uid=%s\ngid=%s\nsubuid=%s\nsubgid=%s' "$(id -u "$AGENT_USER")" "$(id -g "$AGENT_USER")" "$subuid" "$subgid")
 if [ -e "$identity_file" ]; then
     if [ "$(cat "$identity_file")" != "$identity" ]; then
@@ -105,7 +105,7 @@ if [ -e "$identity_file" ]; then
         exit 1
     fi
 else
-    if [ -n "$(find /mnt/lima-pgdata/postgres -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+    if [ -n "$(find /mnt/lima-agentvm-db/postgres /mnt/lima-agentvm-db/postgres18 -mindepth 1 -maxdepth 1 -print -quit)" ]; then
         echo "existing database data has no rootless identity record; migrate it before continuing" >&2
         exit 1
     fi
@@ -115,8 +115,8 @@ else
 fi
 # The image runs initdb as its postgres user, which must traverse this parent
 # directory. PGDATA itself remains private to that user (mode 0700).
-chmod 0711 /mnt/lima-pgdata/postgres
-chmod 0711 /mnt/lima-pgdata/postgres18
+chmod 0711 /mnt/lima-agentvm-db/postgres
+chmod 0711 /mnt/lima-agentvm-db/postgres18
 install -d -m 0755 /etc/shared-dev-db
 cat > /etc/shared-dev-db/compose.yaml <<'EOF'
 services:
@@ -136,12 +136,12 @@ StartLimitIntervalSec=0
 Type=oneshot
 RemainAfterExit=yes
 Environment=DOCKER_HOST=unix://%t/docker.sock
-WorkingDirectory=/mnt/lima-pgdata/shared-dev-db
-ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-pgdata
-ExecStartPre=/usr/bin/test -f /mnt/lima-pgdata/config/shared-dev-db.env
-ExecStartPre=/usr/bin/test -f /mnt/lima-pgdata/config/postgres18-ready
-ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /mnt/lima-pgdata/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
-ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-pgdata/config/shared-dev-db.env -f /mnt/lima-pgdata/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
+WorkingDirectory=/mnt/lima-agentvm-db/shared-dev-db
+ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agentvm-db
+ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-db/config/shared-dev-db.env
+ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-db/config/connection.env
+ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-db/config/shared-dev-db.env -f /mnt/lima-agentvm-db/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-db/config/shared-dev-db.env -f /mnt/lima-agentvm-db/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
 TimeoutStartSec=0
 Restart=on-failure
 RestartSec=30
@@ -219,8 +219,12 @@ export DSH_PERMISSION_MODE=danger-full-access
 export NARB_NATIVE_CACHE_DIR="$HOME/.cache/native-binaries"
 export GIT_TERMINAL_PROMPT=0
 export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
+if [ -r /mnt/lima-agentvm-db/config/connection.env ]; then
+    . /mnt/lima-agentvm-db/config/connection.env
+fi
 EOF
 chmod 0644 /etc/profile.d/agent-env.sh
+ln -sfn /opt/agent-config/bin/shared-db /usr/local/bin/shared-db
 
 # Remove the agent's sudo authorization. Lima needs passwordless sudo during
 # first boot, but the agent must not keep it afterwards.
