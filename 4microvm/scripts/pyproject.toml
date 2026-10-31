@@ -1,0 +1,9 @@
+[project]
+name = "agentvm-tools"
+version = "0.1.0"
+description = "Host-side tools for the agent VM"
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6.0.2,<7"]
+
+[tool.uv]
+package = false

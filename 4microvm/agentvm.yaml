@@ -11,16 +11,34 @@ cpus: 4
 memory: 8GiB
 disk: 60GiB
 
-# Lima's rootless containerd provides nerdctl, BuildKit, runc and CNI.
-# No Docker daemon is installed.
+# Rootless Docker manages its own containerd in the guest.
 containerd:
-  user: true
+  user: false
   system: false
+
+# Created automatically by `just setup`; it survives VM deletion.
+# Keep the name short: older Lima versions have an ext4 label length bug.
+additionalDisks:
+  - name: agentvm-db
+    format: true
+    fsType: ext4
 
 mountType: virtiofs
 mountInotify: true
 
+# The host-side launcher supplies AgentConfig from this checkout's location.
+mounts:
+  - location: "{{.Param.AgentConfig}}"
+    mountPoint: /opt/agent-config
+    writable: false
+  - location: "{{.Param.SharedDevDB}}"
+    mountPoint: /projects/shared-dev-db
+    writable: false
+
 portForwards:
+  # Lima otherwise forwards guest loopback ports to host loopback by default.
+  - guestPort: 5432
+    ignore: true
   # Codex browser-login callback (host browser -> guest Codex).
   - guestPort: 1455
     hostPort: 1455

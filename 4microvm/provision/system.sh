@@ -44,6 +44,10 @@ PACKAGES=(
     python3-venv
     python3-pip
     sudo
+    uidmap
+    dbus-user-session
+    slirp4netns
+    fuse-overlayfs
 )
 apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 
@@ -51,9 +55,100 @@ if [ -x /usr/bin/fdfind ]; then
     ln -sfn /usr/bin/fdfind /usr/local/bin/fd
 fi
 
-if ! command -v nerdctl >/dev/null 2>&1 && ! command -v nerdctl.lima >/dev/null 2>&1; then
-    echo "warning: nerdctl not found; rootless containerd may not be installed" >&2
+# Docker's official Debian packages include the Compose v2 plugin.
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+printf 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian trixie stable\n' > /etc/apt/sources.list.d/docker.list
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
+# Never leave a rootful daemon or socket available to the agent. Rootless
+# Docker runs as the agent under its systemd user manager instead.
+systemctl disable --now docker.service docker.socket containerd.service || true
+systemctl mask docker.service docker.socket
+if getent group docker >/dev/null && id -nG "$AGENT_USER" | tr ' ' '\n' | grep -qx docker; then
+    gpasswd -d "$AGENT_USER" docker
 fi
+loginctl enable-linger "$AGENT_USER"
+
+# The disk and its environment file are intentionally independent of the VM.
+# User provisioning initializes private settings and starts the service.
+if ! mountpoint -q /mnt/lima-agentvm-db; then
+    echo "persistent agentvm-db disk is not mounted; refusing to provision database storage" >&2
+    exit 1
+fi
+install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/config
+# The disk root belongs to root. Create an empty destination the guest user
+# can snapshot runtime files into, without changing existing ownership.
+if [ ! -e /mnt/lima-agentvm-db/shared-dev-db ]; then
+    install -d -m 0755 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/shared-dev-db
+fi
+if [ ! -d /mnt/lima-agentvm-db/postgres ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/postgres
+fi
+if [ ! -d /mnt/lima-agentvm-db/postgres18 ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/postgres18
+fi
+# Rootless container file owners depend on the guest UID and subordinate ID
+# ranges. Refuse to attach old data with a different or unknown mapping.
+subuid=$(awk -F: -v user="$AGENT_USER" '$1 == user { print $2 ":" $3 }' /etc/subuid)
+subgid=$(awk -F: -v user="$AGENT_USER" '$1 == user { print $2 ":" $3 }' /etc/subgid)
+if [ -z "$subuid" ] || [ -z "$subgid" ]; then
+    echo "missing subordinate UID/GID ranges for $AGENT_USER" >&2
+    exit 1
+fi
+identity_file=/mnt/lima-agentvm-db/config/rootless-identity
+identity=$(printf 'uid=%s\ngid=%s\nsubuid=%s\nsubgid=%s' "$(id -u "$AGENT_USER")" "$(id -g "$AGENT_USER")" "$subuid" "$subgid")
+if [ -e "$identity_file" ]; then
+    if [ "$(cat "$identity_file")" != "$identity" ]; then
+        echo "rootless UID/GID mapping changed; refusing to start the existing database" >&2
+        exit 1
+    fi
+else
+    if [ -n "$(find /mnt/lima-agentvm-db/postgres /mnt/lima-agentvm-db/postgres18 -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+        echo "existing database data has no rootless identity record; migrate it before continuing" >&2
+        exit 1
+    fi
+    printf '%s\n' "$identity" > "$identity_file"
+    chmod 0600 "$identity_file"
+    chown "$AGENT_USER:$AGENT_GROUP" "$identity_file"
+fi
+# The image runs initdb as its postgres user, which must traverse this parent
+# directory. PGDATA itself remains private to that user (mode 0700).
+chmod 0711 /mnt/lima-agentvm-db/postgres
+chmod 0711 /mnt/lima-agentvm-db/postgres18
+install -d -m 0755 /etc/shared-dev-db
+cat > /etc/shared-dev-db/compose.yaml <<'EOF'
+services:
+  postgres:
+    # systemd starts it only after checking the persistent disk is mounted.
+    restart: "no"
+EOF
+install -d -m 0755 /etc/systemd/user
+cat > /etc/systemd/user/shared-dev-db.service <<'EOF'
+[Unit]
+Description=Shared development PostgreSQL
+Requires=docker.service
+After=docker.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=DOCKER_HOST=unix://%t/docker.sock
+WorkingDirectory=/mnt/lima-agentvm-db/shared-dev-db
+ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agentvm-db
+ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-db/config/shared-dev-db.env
+ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-db/config/connection.env
+ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-db/config/shared-dev-db.env -f /mnt/lima-agentvm-db/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-db/config/shared-dev-db.env -f /mnt/lima-agentvm-db/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
+TimeoutStartSec=0
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=default.target
+EOF
 
 # Node is installed from a pinned upstream tarball, matching the container setup.
 NODE_TARBALL="node-v$NODE_VERSION-linux-x64.tar.xz"
@@ -123,8 +218,13 @@ export DSH_TELEMETRY_MODE=DISABLED
 export DSH_PERMISSION_MODE=danger-full-access
 export NARB_NATIVE_CACHE_DIR="$HOME/.cache/native-binaries"
 export GIT_TERMINAL_PROMPT=0
+export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
+if [ -r /mnt/lima-agentvm-db/config/connection.env ]; then
+    . /mnt/lima-agentvm-db/config/connection.env
+fi
 EOF
 chmod 0644 /etc/profile.d/agent-env.sh
+ln -sfn /opt/agent-config/bin/shared-db /usr/local/bin/shared-db
 
 # Remove the agent's sudo authorization. Lima needs passwordless sudo during
 # first boot, but the agent must not keep it afterwards.

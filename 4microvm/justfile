@@ -4,9 +4,16 @@ set shell := ["bash", "-uc"]
 default:
     @just --list
 
-# Create and start the VM from the host-specific mount definition.
-create:
-    limactl start --name=agentvm ./mountavm.yaml
+# Create the persistent disk once. Never run this to replace an existing disk.
+create-db-disk size="20GiB":
+    limactl disk create agentvm-db --size {{size}}
+
+# Create or start the VM, initializing the persistent shared database.
+setup:
+    uv run --locked --directory scripts python -m vm_tools.start_vm setup ../mountavm.yaml
+
+# Backwards-compatible name for the complete setup.
+create: setup
 
 start:
     limactl start agentvm
@@ -18,13 +25,20 @@ restart:
     -limactl stop agentvm
     limactl start agentvm
 
-# Delete and recreate the VM. Guest state and auth are lost.
+# Delete and recreate the VM. Guest state and auth are lost; the separately
+# created agentvm-db disk is retained. Ensure it exists before deleting the VM.
 recreate:
-    -limactl delete --force agentvm
-    limactl start --name=agentvm ./mountavm.yaml
+    uv run --locked --directory scripts python -m vm_tools.start_vm recreate ../mountavm.yaml
 
 delete:
     limactl delete --force agentvm
+
+# Permanently delete all shared databases and credentials. Stop the VM first.
+delete-db:
+    limactl disk delete agentvm-db
+
+# Permanently delete the VM and its persistent database disk.
+nuke: delete delete-db
 
 shell:
     limactl shell agentvm
@@ -34,7 +48,7 @@ status:
 
 # Sync mountavm.yaml into the stopped instance. Fails if the VM is running.
 update-mounts:
-    python3 scripts/update_mounts.py agentvm mountavm.yaml
+    uv run --locked --directory scripts python -m vm_tools.update_mounts agentvm ../mountavm.yaml
     @echo "Mounts updated. Run 'just start'."
 
 # Copy tracked config into the guest.
@@ -43,7 +57,11 @@ sync-config:
 
 # Show the installed tools and the most recent cloud-init status.
 doctor:
-    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv nerdctl; do printf "%s: " "$tool"; command -v "$tool" || true; done; cloud-init status --long || true'
+    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv docker; do printf "%s: " "$tool"; command -v "$tool" || true; done; docker compose version; findmnt /mnt/lima-agentvm-db; cloud-init status --long || true'
 
 snapshot:
     limactl snapshot create agentvm --tag baseline
+
+# Run host-side Python tests.
+test:
+    uv run --locked --directory scripts python -m unittest discover -s tests
