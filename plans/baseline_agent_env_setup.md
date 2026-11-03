@@ -103,7 +103,7 @@ not been validated through provisioning or acceptance testing.
 ### Review contract
 
 - Accept explicit change scope: a base revision or specified working-tree
-  changes, including relevant untracked files.
+  changes. Default working-tree scope does not automatically include untracked files.
 - Review against requirements, surrounding code, and verification results,
   rather than relying exclusively on the diff or implementer's explanation.
 - When orchestrated, use a fresh reviewer context. Do not claim independent
@@ -142,27 +142,30 @@ avoid unrelated renaming and subjective synonym preferences.
 Source lives under `4microvm/agent-config/skills/`:
 
 - `baseline-setup/SKILL.md`: project-scoped tooling inspection, gap filling, and
-  verification command setup. Language references define fallback choices;
-  assets provide adaptable shell check scripts and infrastructure smoke tests.
+  verification command setup. Inline language defaults fill missing categories;
+  the agent writes commands and infrastructure smoke tests to suit existing tools.
+  No copyable assets or separate language references are included.
 - `baseline-review/SKILL.md`: concise review checklist with optional scope and
   intended behaviour, usable directly or by a delegated reviewer. Inferred
   expectations supplement supplied intent. Default working-tree scope includes
   staged and unstaged changes, without automatically including untracked files.
 - `baseline-build/SKILL.md`: concise bounded build/verify/review/fix workflow,
   managed by the builder.
-- `baseline-build-coordinator/SKILL.md`: alternative with a light coordinator
-  delegating implementation and fixes to a builder and review to a fresh reviewer.
 
-The two build variants are alternatives for comparison, not nested workflows.
-Both use the same three-pass default and reviewer context boundary. The earlier
-detailed handoff reference has been removed; role, scope, and iteration details
-now live in the concise skill bodies. Earlier proposed report fields and detailed
-procedures above are not requirements imposed by these minimal drafts.
+The builder-led build variant was retained; the coordinator variant was dropped.
+The earlier detailed handoff reference has been removed; role, scope, and
+iteration details now live in the concise skill bodies. Earlier proposed report
+fields and detailed procedures above are not requirements imposed by these
+minimal drafts.
 
-Fallback choices for inspection: Python uses Ruff, mypy, and pytest; TypeScript
+Fallback choices for inspection: Python uses Ruff, ty when also using uv and Ruff
+(otherwise Pyrefly), and pytest; TypeScript
 uses Prettier, ESLint with typescript-eslint, TypeScript, and Vitest. Preserve
-suitable existing tools and settings. References describe initial strictness
-and integration choices; these are editable draft defaults.
+suitable existing tools and settings. Newly introduced type checking uses strict
+mode or the closest supported approximation. For ty, use its recommended stricter
+type-checking rules without mandatory-annotation lint rules, relying on inference
+where available. TypeScript additionally enables `noUncheckedIndexedAccess`.
+These are editable draft defaults.
 
 The draft does not change provisioning, install skills into a running harness,
 or implement harness-specific CLI delegation adapters. Skills describe the
