@@ -19,9 +19,7 @@ fi
 systemctl --user daemon-reload
 bash /opt/agent-config/bin/setup-shared-dev-db
 
-install -m 0644 /opt/agent-config/codex/config.toml "$HOME/.codex/config.toml"
-ln -sfn /opt/agent-config/AGENTS.md "$HOME/.codex/AGENTS.md"
-ln -sfn /opt/agent-config/AGENTS.md "$HOME/.dsh/AGENTS.md"
+bash /opt/agent-config/bin/sync-agent-config
 
 git config --global user.name "Agent"
 git config --global user.email "agent@localhost"

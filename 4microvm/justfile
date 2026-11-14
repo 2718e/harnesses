@@ -38,7 +38,10 @@ delete-db:
     limactl disk delete agentvm-db
 
 # Permanently delete the VM and its persistent database disk.
-nuke: delete delete-db
+[confirm("Permanently delete agentvm AND agentvm-db, including all databases and credentials?")]
+nuke:
+    @just delete
+    @just delete-db
 
 shell:
     limactl shell agentvm
@@ -51,9 +54,9 @@ update-mounts:
     uv run --locked --directory scripts python -m vm_tools.update_mounts agentvm ../mountavm.yaml
     @echo "Mounts updated. Run 'just start'."
 
-# Copy tracked config into the guest.
+# Refresh harness config and link shared skills into the guest.
 sync-config:
-    limactl shell agentvm bash -lc 'mkdir -p "$HOME/.codex" "$HOME/.dsh" && install -m 0644 /opt/agent-config/codex/config.toml "$HOME/.codex/config.toml" && ln -sfn /opt/agent-config/AGENTS.md "$HOME/.codex/AGENTS.md" && ln -sfn /opt/agent-config/AGENTS.md "$HOME/.dsh/AGENTS.md"'
+    limactl shell agentvm bash /opt/agent-config/bin/sync-agent-config
 
 # Show the installed tools and the most recent cloud-init status.
 doctor:

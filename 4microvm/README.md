@@ -22,6 +22,18 @@ available while the VM runs, since its config mount is live. Do not mount the
 active harness checkout as a writable project; use a separate clone instead.
 Conflicting and overlapping mounts are rejected.
 
+## Harness configuration and skills
+
+Provisioning links the shared skills from `agent-config/skills/` into the guest's
+`~/.agents/skills/`, where Codex and dsh discover them. The links point into the
+live read-only config mount, so edits to existing skill content need no recreation.
+Unrelated user skills are preserved; a local directory with the same name causes
+sync to fail rather than overwrite it.
+
+For an existing VM, or after adding a new skill, run `just sync-config` from this
+directory. This also refreshes Codex configuration and shared `AGENTS.md` links.
+Restart Codex if the skills do not appear under `$` or `/skills`.
+
 ## Use the database
 
 ```sh
@@ -51,7 +63,8 @@ configuration before creating disks or deleting an instance.
 
 For a fresh database, stop the VM and run `just delete-db` to permanently
 delete the entire `agentvm-db` disk, including all databases and credentials.
-`just nuke` deletes the VM first, then that disk. Run `just setup` afterward
+`just nuke` asks for confirmation before deleting the VM first, then that disk.
+Declining or providing no answer leaves both intact. Run `just setup` afterward
 to create both from scratch. These commands do not affect a host-side database.
 
 Lima keeps the disk under `LIMA_HOME`, rather than
