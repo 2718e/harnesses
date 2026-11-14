@@ -31,7 +31,7 @@ class SetupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / 'db-source'
             (db / 'scripts').mkdir(parents=True)
-            for name in ('compose.yaml', 'scripts/configure.py', 'scripts/create-db.sh', 'scripts/setup.sh'):
+            for name in ('compose.yaml', 'Dockerfile', 'scripts/configure.py', 'scripts/create-db.sh', 'scripts/setup.sh'):
                 (db / name).touch()
             source = Path(directory) / 'mountavm.yaml'
             with patch('vm_tools.mounts.DEFAULT_DATABASE_SOURCE', db), \

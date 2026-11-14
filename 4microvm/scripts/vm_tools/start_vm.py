@@ -54,7 +54,7 @@ def main():
     params["AgentConfig"] = config_dir
     db_mount = next(m for m in mounts if m["mountPoint"] == "/projects/shared-dev-db")
     db_source = Path(db_mount["location"])
-    for runtime_file in ("compose.yaml", "scripts/configure.py", "scripts/create-db.sh", "scripts/setup.sh"):
+    for runtime_file in ("compose.yaml", "Dockerfile", "scripts/configure.py", "scripts/create-db.sh", "scripts/setup.sh"):
         if not (db_source / runtime_file).is_file():
             fail(f"missing {db_source / runtime_file}; use the current shared-dev-db checkout")
     params["SharedDevDB"] = str(db_source)
