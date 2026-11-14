@@ -58,7 +58,8 @@ PostgreSQL listens on guest loopback; its port is not forwarded to the host.
 New VMs have Tailscale installed, its daemon enabled, and Tailscale SSH
 configured. The guest user is the Tailscale operator and can manage Tailscale
 without general sudo. To enroll the VM, run `tailscale up` in `just shell` and
-follow the sign-in link. Install Tailscale on your remote device and sign it
+follow the sign-in link. A background service enables Tailscale SSH after
+the VM connects; this can take a few seconds. Install Tailscale on your remote device and sign it
 into the same tailnet, then connect using `ssh GUEST_USER@VM_TAILSCALE_NAME`.
 The tailnet's network and SSH access rules must allow the connection.
 
