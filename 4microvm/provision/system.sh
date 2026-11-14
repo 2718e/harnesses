@@ -37,6 +37,7 @@ PACKAGES=(
     pkg-config
     jq
     ripgrep
+    tmux
     fd-find
     unzip
     xz-utils
@@ -54,6 +55,46 @@ apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 if [ -x /usr/bin/fdfind ]; then
     ln -sfn /usr/bin/fdfind /usr/local/bin/fd
 fi
+
+# Install Tailscale from its official Debian 13 repository. The guest user can
+# manage Tailscale without general sudo; enrollment remains an interactive step.
+install -m 0755 -d /usr/share/keyrings
+curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
+apt-get update
+apt-get install -y tailscale
+systemctl enable --now tailscaled.service
+tailscale set --operator="$AGENT_USER" --ssh
+
+# First login can replace preferences configured before enrollment. Wait until
+# Tailscale is connected, then apply SSH to the active profile. This service
+# does not block VM boot or require tailnet credentials during provisioning.
+cat > /usr/local/sbin/enable-tailscale-ssh <<'EOF'
+#!/bin/bash
+set -euo pipefail
+until tailscale status --json 2>/dev/null | python3 -c 'import json, sys; sys.exit(json.load(sys.stdin).get("BackendState") != "Running")' 2>/dev/null; do
+    sleep 5
+done
+tailscale set --ssh
+EOF
+chmod 0755 /usr/local/sbin/enable-tailscale-ssh
+cat > /etc/systemd/system/enable-tailscale-ssh.service <<'EOF'
+[Unit]
+Description=Enable Tailscale SSH after enrollment
+After=tailscaled.service
+Requires=tailscaled.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/enable-tailscale-ssh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+systemctl daemon-reload
+systemctl enable --now enable-tailscale-ssh.service
 
 # Docker's official Debian packages include the Compose v2 plugin.
 install -m 0755 -d /etc/apt/keyrings

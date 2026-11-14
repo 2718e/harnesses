@@ -60,7 +60,7 @@ sync-config:
 
 # Show the installed tools and the most recent cloud-init status.
 doctor:
-    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv docker; do printf "%s: " "$tool"; command -v "$tool" || true; done; docker compose version; findmnt /mnt/lima-agentvm-db; cloud-init status --long || true'
+    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv docker tmux tailscale; do printf "%s: " "$tool"; command -v "$tool" || true; done; docker compose version; findmnt /mnt/lima-agentvm-db; cloud-init status --long || true'
 
 snapshot:
     limactl snapshot create agentvm --tag baseline
