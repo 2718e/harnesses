@@ -6,19 +6,28 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/docker.sock"
 export COMPOSE_PROJECT_NAME=shared-dev-db
 storage=/mnt/lima-agentvm-db
-source=/projects/shared-dev-db
+source=${SHARED_DEV_DB_SOURCE:-/projects/shared-dev-db}
 runtime=$storage/shared-dev-db
 mountpoint -q "$storage" || { echo "Persistent database disk is not mounted" >&2; exit 1; }
-if [[ ! -f $source/compose.yaml || ! -f $source/scripts/configure.py ]]; then
+if [[ ! -f $source/compose.yaml || ! -f $source/scripts/configure.py || ! -f $source/Dockerfile ]]; then
     echo "Mount the current shared-dev-db repository at $source before running setup." >&2
     exit 1
 fi
 # Snapshot runtime files, including uncommitted edits, without copying host
 # credentials/data/Git metadata. Normal boots need only this persistent copy.
 # Stop before updating files used by ExecStop as well as ExecStart.
+python3 "$source/scripts/configure.py" \
+    --env-file "$storage/config/shared-dev-db.env" \
+    --data-dir "$storage/postgres18" --require-data-dir \
+    --connection-file "$storage/config/connection.env"
+# Build before stopping the healthy server; do not charge compilation time to
+# systemd's startup timeout. Use the source checkout as build context.
+docker compose --project-directory "$source" \
+    --env-file "$storage/config/shared-dev-db.env" build
 systemctl --user stop shared-dev-db.service
 mkdir -p "$runtime/scripts"
 install -m 0644 "$source/compose.yaml" "$runtime/compose.yaml"
+install -m 0644 "$source/Dockerfile" "$runtime/Dockerfile"
 for script in configure.py create-db.sh setup.sh; do
     install -m 0755 "$source/scripts/$script" "$runtime/scripts/$script"
 done

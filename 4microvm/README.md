@@ -95,7 +95,7 @@ The persistent disk stores:
 - `config/shared-dev-db.env`: instance settings and generated password.
 - `config/connection.env`: shell export of the connection base URL.
 - `config/rootless-identity`: guest UID/GID and subordinate ID mapping.
-- `shared-dev-db/`: a snapshot of the source repository's Compose file and runtime scripts.
+- `shared-dev-db/`: a snapshot of the source repository's Compose file, Dockerfile and runtime scripts.
 
 Setup copies the current runtime files, including uncommitted edits, without
 copying host credentials, database files, or Git metadata. Normal boots use the
@@ -153,3 +153,17 @@ The disk is named `agentvm-db` because disk names are shared within `LIMA_HOME`.
 The short name also avoids older Lima ext4 label bugs. An existing disk named
 `pgdata` is not migrated or deleted by these commands; existing VMs need recreation
 to use the new name.
+
+### Database extensions
+
+The shared-dev-db repository builds its PostgreSQL Alpine image with PostGIS;
+geospatial packages are installed in the container, so no VM packages or VM
+recreation are needed. Setup builds before stopping the current server, then
+preserves its persistent data and credentials. Normal boots reuse the built image.
+After updating both checkouts, rerun `bash /opt/agent-config/bin/setup-shared-dev-db`.
+For a writable guest clone, set `SHARED_DEV_DB_SOURCE=/new-projects/shared-dev-db-postgis`
+when invoking setup. The default remains the mounted checkout.
+
+Extensions are enabled per database: connect to the project database and run
+`CREATE EXTENSION IF NOT EXISTS postgis;`. Availability in the server does not
+enable it in every project database. See shared-dev-db's README for build options.
