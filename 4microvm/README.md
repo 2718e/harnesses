@@ -53,6 +53,21 @@ for every project. For a process that does not read shell profiles, source
 `shared-dev-db.env` contain credentials and are private to the guest user.
 PostgreSQL listens on guest loopback; its port is not forwarded to the host.
 
+## Remote access
+
+New VMs have Tailscale installed, its daemon enabled, and Tailscale SSH
+configured. The guest user is the Tailscale operator and can manage Tailscale
+without general sudo. To enroll the VM, run `tailscale up` in `just shell` and
+follow the sign-in link. Install Tailscale on your remote device and sign it
+into the same tailnet, then connect using `ssh GUEST_USER@VM_TAILSCALE_NAME`.
+The tailnet's network and SSH access rules must allow the connection.
+
+Tailscale has an upstream issue where an operator configured before the first
+login may still be denied access to `tailscale up` or `tailscale login`. If
+that happens, privileged initial enrollment is needed; the guest user has no
+sudo access. An existing VM does not receive this provisioning change until it
+is recreated. Recreation also discards Tailscale's guest identity.
+
 ## Persistence and lifecycle
 
 `just stop` and `just start` handle normal use; the database starts at boot.

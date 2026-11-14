@@ -37,6 +37,7 @@ PACKAGES=(
     pkg-config
     jq
     ripgrep
+    tmux
     fd-find
     unzip
     xz-utils
@@ -54,6 +55,16 @@ apt-get install -y --no-install-recommends "${PACKAGES[@]}"
 if [ -x /usr/bin/fdfind ]; then
     ln -sfn /usr/bin/fdfind /usr/local/bin/fd
 fi
+
+# Install Tailscale from its official Debian 13 repository. The guest user can
+# manage Tailscale without general sudo; enrollment remains an interactive step.
+install -m 0755 -d /usr/share/keyrings
+curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
+apt-get update
+apt-get install -y tailscale
+systemctl enable --now tailscaled.service
+tailscale set --operator="$AGENT_USER" --ssh
 
 # Docker's official Debian packages include the Compose v2 plugin.
 install -m 0755 -d /etc/apt/keyrings
