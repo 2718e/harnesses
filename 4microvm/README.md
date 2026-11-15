@@ -56,8 +56,7 @@ PostgreSQL listens on guest loopback; its port is not forwarded to the host.
 ## Remote access
 
 New VMs have Tailscale installed, its daemon enabled, and Tailscale SSH
-configured. The guest user is the Tailscale operator and can manage Tailscale
-without general sudo. To enroll the VM, run `tailscale up` in `just shell` and
+configured. The guest user is the Tailscale operator. To enroll the VM, run `tailscale up` in `just shell` and
 follow the sign-in link. A background service enables Tailscale SSH after
 the VM connects; this can take a few seconds. Install Tailscale on your remote device and sign it
 into the same tailnet, then connect using `ssh GUEST_USER@VM_TAILSCALE_NAME`.
@@ -65,8 +64,8 @@ The tailnet's network and SSH access rules must allow the connection.
 
 Tailscale has an upstream issue where an operator configured before the first
 login may still be denied access to `tailscale up` or `tailscale login`. If
-that happens, privileged initial enrollment is needed; the guest user has no
-sudo access. Tailscale state lives on the persistent disk and survives recreation. Key expiry,
+that happens, run `sudo tailscale up` instead. Tailscale state lives on the
+persistent disk and survives recreation. Key expiry,
 revocation or tailnet policy may still require reauthentication. Never run two
 VMs using copies of the same Tailscale identity.
 
@@ -139,10 +138,14 @@ data.
 
 ## Runtime and troubleshooting
 
-Docker and Compose run as the guest user with rootless Docker. The system daemon
-and socket are masked, and the agent is not in the Docker group. User lingering
-starts the services at boot. Rootless containers do not make this VM a substitute
-for a security boundary.
+The guest user has passwordless sudo, including when running Codex. Guest root
+can read or change persistent Tailscale credentials and databases, modify guest
+security settings, and interact with mounted projects. Take care when deciding
+which host directories to mount into the VM.
+
+Docker and Compose default to rootless Docker as the guest user. The system
+daemon and socket are initially masked; a user with sudo can change that. User
+lingering starts the rootless services at boot.
 
 The systemd user service checks the persistent mount and configuration, then
 waits for Compose health. It retries failed startup; the container's own restart
@@ -158,7 +161,8 @@ journalctl --user -u shared-dev-db.service
 ```
 
 `docker info --format '{{json .SecurityOptions}}'` should include `rootless`.
-`sudo -n true` and `docker -H unix:///var/run/docker.sock info` should fail.
+`sudo -n true` should succeed, while `docker -H unix:///var/run/docker.sock info`
+should fail under the default rootless configuration.
 A writable project mount can be tested by creating a throwaway file directly and
 in a rootless container, then comparing numeric owners with `stat` on host and
 guest. Images running as non-root may produce subordinate IDs; test your actual
@@ -189,7 +193,7 @@ just setup
 These commands permanently discard the old guest, its logins and old disk
 contents. Enroll Tailscale once on the new VM. If you need the old Tailscale
 identity, do not delete the old VM: its `/var/lib/tailscale/tailscaled.state`
-is root-only and the guest user has no sudo. A privileged recovery/migration
+is root-only in the legacy VM, whose guest user has no sudo. A privileged recovery/migration
 procedure is not automated; preserve the VM and disk until the state can be
 copied securely while the daemon is stopped. Never copy it to a location readable
 by the guest user. The legacy `pgdata` disk is also untouched.

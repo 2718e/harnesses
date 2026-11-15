@@ -11,14 +11,14 @@ You are running inside a Lima VM, not on the host. The host filesystem is visibl
 
 ## Privileges
 
-- There is no sudo. Do not run sudo, apt, system-wide systemctl, or commands that assume root.
-- System packages are part of the VM image. If you need one, report it; the host must add it to provisioning and recreate the VM.
+- The guest user has passwordless sudo for system administration. Use it when needed; changes to the guest root disk are lost on recreation.
+- Add generally useful system packages to VM provisioning when they should survive recreation.
 - User-local installs are fine: uv, pnpm/npm with the user prefix, rustup, project dependencies.
 
 ## Containers
 
 - Use rootless Docker and Docker Compose: docker run, docker build, docker compose.
-- The Docker daemon runs as the VM user; the system Docker socket is disabled.
+- The Docker daemon runs as the VM user by default; the system Docker socket is disabled by provisioning.
 
 ## Shared development database
 

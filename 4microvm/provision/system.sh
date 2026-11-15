@@ -58,7 +58,7 @@ if [ -x /usr/bin/fdfind ]; then
 fi
 
 # Install Tailscale from its official Debian 13 repository. The guest user can
-# manage Tailscale without general sudo; enrollment remains an interactive step.
+# manage Tailscale; enrollment remains an interactive step.
 install -m 0755 -d /usr/share/keyrings
 curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
 curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
@@ -120,8 +120,8 @@ chmod a+r /etc/apt/keyrings/docker.asc
 printf 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian trixie stable\n' > /etc/apt/sources.list.d/docker.list
 apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
-# Never leave a rootful daemon or socket available to the agent. Rootless
-# Docker runs as the agent under its systemd user manager instead.
+# Default to rootless Docker under the agent's systemd user manager.
+# The agent has sudo and can change this configuration.
 systemctl disable --now docker.service docker.socket containerd.service || true
 systemctl mask docker.service docker.socket
 if getent group docker >/dev/null && id -nG "$AGENT_USER" | tr ' ' '\n' | grep -qx docker; then
@@ -270,13 +270,16 @@ EOF
 chmod 0644 /etc/profile.d/agent-env.sh
 ln -sfn /opt/agent-config/bin/shared-db /usr/local/bin/shared-db
 
-# Remove the agent's sudo authorization. Lima needs passwordless sudo during
-# first boot, but the agent must not keep it afterwards.
-deluser "$AGENT_USER" sudo || true
-rm -f /etc/sudoers.d/90-cloud-init-users
+# Grant the guest user passwordless sudo, regardless of Lima's sudo group or
+# cloud-init policy. Validate the rule before installing it.
+sudo_rule=$(mktemp)
+trap 'rm -f "$sudo_rule"' EXIT
+printf '%s ALL=(ALL:ALL) NOPASSWD: ALL\n' "$AGENT_USER" > "$sudo_rule"
+visudo -cf "$sudo_rule"
+install -o root -g root -m 0440 "$sudo_rule" /etc/sudoers.d/99-agentvm-user
 visudo -c
-if su - "$AGENT_USER" -c 'sudo -n true' >/dev/null 2>&1; then
-    echo "sudo is still available for $AGENT_USER" >&2
+if ! su - "$AGENT_USER" -c 'sudo -n true' >/dev/null 2>&1; then
+    echo "passwordless sudo is unavailable for $AGENT_USER" >&2
     exit 1
 fi
 
