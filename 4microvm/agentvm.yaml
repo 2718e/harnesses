@@ -19,7 +19,7 @@ containerd:
 # Created automatically by `just setup`; it survives VM deletion.
 # Keep the name short: older Lima versions have an ext4 label length bug.
 additionalDisks:
-  - name: agentvm-db
+  - name: agentvm-persist
     format: true
     fsType: ext4
 

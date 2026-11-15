@@ -1,21 +1,5 @@
-# What this is
+# Agent harness VM
 
-This repo contains my attempts at setting up my own agent harnesses
+`4microvm` is the active project: a Lima VM for coding agents working on explicitly mounted projects. See [the VM setup and usage guide](4microvm/README.md).
 
-(and of course using agentic development to create this project itself)
-
-At time of writing have versions for both the deepseek harness and pi harness.
-
-## Notes on use
-
-### General
-
-### dsh (deepseek harness)
-
-Have tried to set this up so the agent has tools to debug node.js and python projects within it's container.
-
-Currently it assumes that uv will be used for dependency management in python projects
-
-## Credits
-
-spec-refine skill adapted from the grilling skill in https://github.com/mattpocock/skills
+The former dsh project and VM integration have been retired.

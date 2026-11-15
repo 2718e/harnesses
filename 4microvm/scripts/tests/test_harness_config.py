@@ -46,7 +46,7 @@ class HarnessConfigTests(unittest.TestCase):
         self.assertEqual(custom.read_text(), 'user skill\n')
         (self.source / 'skills' / 'example' / 'SKILL.md').write_text('updated skill\n')
         self.assertEqual((installed / 'SKILL.md').read_text(), 'updated skill\n')
-        for harness in ('.codex', '.dsh'):
+        for harness in ('.codex',):
             guidance = self.home / harness / 'AGENTS.md'
             self.assertTrue(guidance.is_symlink())
             self.assertEqual(guidance.read_text(), 'VM guidance\n')
@@ -102,7 +102,7 @@ class NukeConfirmationTests(unittest.TestCase):
     def test_confirmation_deletes_vm_then_disk(self):
         result, calls = self.invoke('y\n')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls, ['delete --force agentvm', 'disk delete agentvm-db'])
+        self.assertEqual(calls, ['delete --force agentvm', 'disk delete agentvm-persist'])
 
 
 if __name__ == '__main__':
