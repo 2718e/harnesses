@@ -231,8 +231,9 @@ install -m 0755 "/tmp/$UV_DIR/uvx" /usr/local/bin/uvx
 rm -rf "/tmp/$UV_TARBALL" "/tmp/$UV_DIR"
 
 # Install the skill installer from its Go module. Go downloads its required
-# toolchain automatically if the distribution version is older.
-GOBIN=/usr/local/bin go install github.com/owainlewis/skills@latest
+# toolchain automatically if the distribution version is older. Lima system
+# provisioning may not set HOME; Go needs it for its module and build caches.
+HOME=/root GOBIN=/usr/local/bin go install github.com/owainlewis/skills@latest
 
 # Install the harness Node project. The package files come from the read-only
 # agent-config mount; /opt/harness stays root-owned so the agent cannot mutate

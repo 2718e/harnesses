@@ -22,6 +22,12 @@ available while the VM runs, since its config mount is live. Do not mount the
 active harness checkout as a writable project; use a separate clone instead.
 Conflicting and overlapping mounts are rejected.
 
+VM startup waits up to 30 minutes for provisioning. If it times out, inspect
+the existing VM before recreating it: `limactl list agentvm`, then, if it is
+running, `limactl shell agentvm -- cloud-init status --long` and
+`limactl shell agentvm -- sudo tail -100 /var/log/cloud-init-output.log`.
+A startup timeout alone does not show whether provisioning succeeded.
+
 ## Harness configuration and skills
 
 The sibling `skills` Git checkout is mounted read-only at `/opt/skills-repo`.

@@ -16,14 +16,14 @@ setup:
 create: setup
 
 start:
-    limactl start agentvm
+    limactl start --timeout=30m agentvm
 
 stop:
     limactl stop agentvm
 
 restart:
     -limactl stop agentvm
-    limactl start agentvm
+    limactl start --timeout=30m agentvm
 
 # Delete and recreate the VM. Guest state and auth are lost; the separately
 # created agentvm-persist disk is retained. Ensure it exists before deleting the VM.
