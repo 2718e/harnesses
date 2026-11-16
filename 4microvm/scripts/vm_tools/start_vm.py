@@ -30,11 +30,14 @@ def lima_records(*arguments):
 
 
 def ensure_disk(*, required=False):
-    if any(disk.get("name") == "agentvm-db" for disk in lima_records("disk", "list")):
+    names = {disk.get("name") for disk in lima_records("disk", "list")}
+    if "agentvm-db" in names:
+        fail("legacy agentvm-db disk exists; see README migration instructions before continuing")
+    if "agentvm-persist" in names:
         return
     if required:
-        fail("agentvm-db disk missing; refusing to replace an existing VM's persistent disk")
-    subprocess.run(["limactl", "disk", "create", "agentvm-db", "--size", "20GiB"], check=True)
+        fail("agentvm-persist disk missing; refusing to replace an existing VM's persistent disk")
+    subprocess.run(["limactl", "disk", "create", "agentvm-persist", "--size", "20GiB"], check=True)
 
 
 def configure_database():

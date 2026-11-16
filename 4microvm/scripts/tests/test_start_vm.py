@@ -12,8 +12,8 @@ from vm_tools import start_vm
 
 class SetupTests(unittest.TestCase):
     def test_disk_json_formats(self):
-        for text in ('[{"name":"agentvm-db"}]', '{"name":"other"}\n{"name":"agentvm-db"}\n'):
-            self.assertEqual(start_vm.records(text)[-1]['name'], 'agentvm-db')
+        for text in ('[{"name":"agentvm-persist"}]', '{"name":"other"}\n{"name":"agentvm-persist"}\n'):
+            self.assertEqual(start_vm.records(text)[-1]['name'], 'agentvm-persist')
         with self.assertRaises(ValueError):
             start_vm.records('invalid')
 
@@ -26,7 +26,7 @@ class SetupTests(unittest.TestCase):
             if command[1:] == ['list', '--json']:
                 return subprocess.CompletedProcess(command, 0, '[{"name":"agentvm"}]' if existing else '[]')
             if command[1:] == ['disk', 'list', '--json']:
-                return subprocess.CompletedProcess(command, 0, '[{"name":"agentvm-db"}]' if disk else '[]')
+                return subprocess.CompletedProcess(command, 0, '[{"name":"agentvm-persist"}]' if disk else '[]')
             return subprocess.CompletedProcess(command, 0)
         with tempfile.TemporaryDirectory() as directory:
             db = Path(directory) / 'db-source'
@@ -48,7 +48,7 @@ class SetupTests(unittest.TestCase):
 
     def test_fresh_setup_creates_disk_and_vm(self):
         calls = self.run_setup()
-        self.assertIn(['limactl', 'disk', 'create', 'agentvm-db', '--size', '20GiB'], calls)
+        self.assertIn(['limactl', 'disk', 'create', 'agentvm-persist', '--size', '20GiB'], calls)
         self.assertTrue(any('--name=agentvm' in c for c in calls))
 
     def test_rerun_reuses_disk_and_instance(self):
@@ -60,6 +60,20 @@ class SetupTests(unittest.TestCase):
     def test_missing_disk_prevents_destructive_recreation(self):
         calls = self.run_setup('recreate', existing=True)
         self.assertFalse(any(c[1] == 'delete' for c in calls))
+
+    def test_legacy_disk_prevents_new_disk_creation(self):
+        with patch.object(start_vm, 'lima_records', return_value=[{'name': 'agentvm-db'}]), \
+             patch.object(start_vm.subprocess, 'run') as run, \
+             contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                start_vm.ensure_disk()
+            run.assert_not_called()
+
+    def test_legacy_disk_blocks_even_if_new_disk_exists(self):
+        with patch.object(start_vm, 'lima_records', return_value=[{'name': 'agentvm-db'}, {'name': 'agentvm-persist'}]), \
+             contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                start_vm.ensure_disk(required=True)
 
     def test_validation_failure_prevents_mutations(self):
         calls = self.run_setup(invalid=True)

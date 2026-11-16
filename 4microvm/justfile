@@ -5,8 +5,8 @@ default:
     @just --list
 
 # Create the persistent disk once. Never run this to replace an existing disk.
-create-db-disk size="20GiB":
-    limactl disk create agentvm-db --size {{size}}
+create-persistent-disk size="20GiB":
+    limactl disk create agentvm-persist --size {{size}}
 
 # Create or start the VM, initializing the persistent shared database.
 setup:
@@ -26,22 +26,22 @@ restart:
     limactl start agentvm
 
 # Delete and recreate the VM. Guest state and auth are lost; the separately
-# created agentvm-db disk is retained. Ensure it exists before deleting the VM.
+# created agentvm-persist disk is retained. Ensure it exists before deleting the VM.
 recreate:
     uv run --locked --directory scripts python -m vm_tools.start_vm recreate ../mountavm.yaml
 
 delete:
     limactl delete --force agentvm
 
-# Permanently delete all shared databases and credentials. Stop the VM first.
-delete-db:
-    limactl disk delete agentvm-db
+# Permanently delete databases, credentials and Tailscale identity. Stop the VM first.
+delete-persistent-disk:
+    limactl disk delete agentvm-persist
 
-# Permanently delete the VM and its persistent database disk.
-[confirm("Permanently delete agentvm AND agentvm-db, including all databases and credentials?")]
+# Permanently delete the VM and its persistent disk.
+[confirm("Permanently delete agentvm AND agentvm-persist, including databases, credentials and Tailscale identity?")]
 nuke:
     @just delete
-    @just delete-db
+    @just delete-persistent-disk
 
 shell:
     limactl shell agentvm
@@ -60,7 +60,7 @@ sync-config:
 
 # Show the installed tools and the most recent cloud-init status.
 doctor:
-    limactl shell agentvm bash -lc 'id; for tool in dsh codex ast-grep tree-sitter node pnpm uv docker tmux tailscale; do printf "%s: " "$tool"; command -v "$tool" || true; done; docker compose version; findmnt /mnt/lima-agentvm-db; cloud-init status --long || true'
+    limactl shell agentvm bash -lc 'id; for tool in just t3 codex ast-grep tree-sitter node pnpm uv docker tmux tailscale; do printf "%s: " "$tool"; command -v "$tool" || true; done; printf "passwordless sudo: "; if sudo -n true; then echo available; else echo unavailable; fi; docker compose version; findmnt /mnt/lima-agentvm-persist; cloud-init status --long || true'
 
 snapshot:
     limactl snapshot create agentvm --tag baseline

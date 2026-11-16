@@ -11,20 +11,20 @@ You are running inside a Lima VM, not on the host. The host filesystem is visibl
 
 ## Privileges
 
-- There is no sudo. Do not run sudo, apt, system-wide systemctl, or commands that assume root.
-- System packages are part of the VM image. If you need one, report it; the host must add it to provisioning and recreate the VM.
+- The guest user has passwordless sudo for system administration. Use it when needed; changes to the guest root disk are lost on recreation.
+- Add generally useful system packages to VM provisioning when they should survive recreation.
 - User-local installs are fine: uv, pnpm/npm with the user prefix, rustup, project dependencies.
 
 ## Containers
 
 - Use rootless Docker and Docker Compose: docker run, docker build, docker compose.
-- The Docker daemon runs as the VM user; the system Docker socket is disabled.
+- The Docker daemon runs as the VM user by default; the system Docker socket is disabled by provisioning.
 
 ## Shared development database
 
 - PostgreSQL is ready on guest loopback. Run `shared-db my_project` from any directory to create a project database; rerunning is safe.
 - `SHARED_DEV_DB_BASE_URL` contains the connection credentials and ends with `/`. Use `DATABASE_URL="${SHARED_DEV_DB_BASE_URL}my_project"` for the project's connection.
-- For non-login processes, source `/mnt/lima-agentvm-db/config/connection.env` first. This file contains credentials; do not print or commit it.
+- For non-login processes, source `/mnt/lima-agentvm-persist/config/connection.env` first. This file contains credentials; do not print or commit it.
 - The systemd user service is `shared-dev-db.service`. Inspect it with `systemctl --user status shared-dev-db.service` or its user journal.
 - The database data and settings persist on a separate disk across VM recreation. Do not delete them or change the instance password as part of project setup.
 
@@ -43,5 +43,5 @@ You are running inside a Lima VM, not on the host. The host filesystem is visibl
 
 ## Harnesses
 
-- Codex and dsh are available as commands in the VM shell.
+- Codex and just are available as commands in the VM shell.
 - Do not write into read-only mounts or use tricks to bypass mount permissions.

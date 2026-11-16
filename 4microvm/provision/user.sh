@@ -2,12 +2,7 @@
 # User provisioning for the agent harness VM. Runs as the Lima user.
 set -euo pipefail
 
-if [ ! -x /usr/local/bin/dsh ]; then
-    echo "dsh is not installed; system provisioning did not complete" >&2
-    exit 1
-fi
-
-mkdir -p "$HOME/.codex" "$HOME/.dsh" "$HOME/.cache/native-binaries"
+mkdir -p "$HOME/.codex"
 
 # The system provisioner enabled lingering so this user manager survives
 # logout and starts on boot. Set an explicit runtime environment for cloud-init.
@@ -33,6 +28,6 @@ fi
 
 cat <<'EOF'
 
-Harness VM provisioning complete. Open a shell and run codex or dsh.
+Harness VM provisioning complete. Open a shell and run codex.
 Codex login: codex login --device-auth
 EOF

@@ -36,6 +36,7 @@ PACKAGES=(
     cmake
     pkg-config
     jq
+    just
     ripgrep
     tmux
     fd-find
@@ -57,12 +58,28 @@ if [ -x /usr/bin/fdfind ]; then
 fi
 
 # Install Tailscale from its official Debian 13 repository. The guest user can
-# manage Tailscale without general sudo; enrollment remains an interactive step.
+# manage Tailscale; enrollment remains an interactive step.
 install -m 0755 -d /usr/share/keyrings
 curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
 curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
 apt-get update
+# Mask before package installation so its post-install hook cannot start a daemon
+# using disposable root-disk state. Refuse to proceed without the real disk.
+systemctl mask tailscaled.service
+mountpoint -q /mnt/lima-agentvm-persist || { echo "persistent disk is not mounted" >&2; exit 1; }
+install -d -m 0700 -o root -g root /mnt/lima-agentvm-persist/tailscale
 apt-get install -y tailscale
+install -d -m 0755 /etc/systemd/system/tailscaled.service.d
+cat > /etc/systemd/system/tailscaled.service.d/persistent-state.conf <<'EOF'
+[Unit]
+RequiresMountsFor=/mnt/lima-agentvm-persist
+[Service]
+ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agentvm-persist
+ExecStart=
+ExecStart=/usr/sbin/tailscaled --state=/mnt/lima-agentvm-persist/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=${PORT} $FLAGS
+EOF
+systemctl daemon-reload
+systemctl unmask tailscaled.service
 systemctl enable --now tailscaled.service
 tailscale set --operator="$AGENT_USER" --ssh
 
@@ -103,8 +120,8 @@ chmod a+r /etc/apt/keyrings/docker.asc
 printf 'deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian trixie stable\n' > /etc/apt/sources.list.d/docker.list
 apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
-# Never leave a rootful daemon or socket available to the agent. Rootless
-# Docker runs as the agent under its systemd user manager instead.
+# Default to rootless Docker under the agent's systemd user manager.
+# The agent has sudo and can change this configuration.
 systemctl disable --now docker.service docker.socket containerd.service || true
 systemctl mask docker.service docker.socket
 if getent group docker >/dev/null && id -nG "$AGENT_USER" | tr ' ' '\n' | grep -qx docker; then
@@ -114,21 +131,21 @@ loginctl enable-linger "$AGENT_USER"
 
 # The disk and its environment file are intentionally independent of the VM.
 # User provisioning initializes private settings and starts the service.
-if ! mountpoint -q /mnt/lima-agentvm-db; then
-    echo "persistent agentvm-db disk is not mounted; refusing to provision database storage" >&2
+if ! mountpoint -q /mnt/lima-agentvm-persist; then
+    echo "persistent agentvm-persist disk is not mounted; refusing to provision database storage" >&2
     exit 1
 fi
-install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/config
+install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-persist/config
 # The disk root belongs to root. Create an empty destination the guest user
 # can snapshot runtime files into, without changing existing ownership.
-if [ ! -e /mnt/lima-agentvm-db/shared-dev-db ]; then
-    install -d -m 0755 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/shared-dev-db
+if [ ! -e /mnt/lima-agentvm-persist/shared-dev-db ]; then
+    install -d -m 0755 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-persist/shared-dev-db
 fi
-if [ ! -d /mnt/lima-agentvm-db/postgres ]; then
-    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/postgres
+if [ ! -d /mnt/lima-agentvm-persist/postgres ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-persist/postgres
 fi
-if [ ! -d /mnt/lima-agentvm-db/postgres18 ]; then
-    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-db/postgres18
+if [ ! -d /mnt/lima-agentvm-persist/postgres18 ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-persist/postgres18
 fi
 # Rootless container file owners depend on the guest UID and subordinate ID
 # ranges. Refuse to attach old data with a different or unknown mapping.
@@ -138,7 +155,7 @@ if [ -z "$subuid" ] || [ -z "$subgid" ]; then
     echo "missing subordinate UID/GID ranges for $AGENT_USER" >&2
     exit 1
 fi
-identity_file=/mnt/lima-agentvm-db/config/rootless-identity
+identity_file=/mnt/lima-agentvm-persist/config/rootless-identity
 identity=$(printf 'uid=%s\ngid=%s\nsubuid=%s\nsubgid=%s' "$(id -u "$AGENT_USER")" "$(id -g "$AGENT_USER")" "$subuid" "$subgid")
 if [ -e "$identity_file" ]; then
     if [ "$(cat "$identity_file")" != "$identity" ]; then
@@ -146,7 +163,7 @@ if [ -e "$identity_file" ]; then
         exit 1
     fi
 else
-    if [ -n "$(find /mnt/lima-agentvm-db/postgres /mnt/lima-agentvm-db/postgres18 -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+    if [ -n "$(find /mnt/lima-agentvm-persist/postgres /mnt/lima-agentvm-persist/postgres18 -mindepth 1 -maxdepth 1 -print -quit)" ]; then
         echo "existing database data has no rootless identity record; migrate it before continuing" >&2
         exit 1
     fi
@@ -156,8 +173,8 @@ else
 fi
 # The image runs initdb as its postgres user, which must traverse this parent
 # directory. PGDATA itself remains private to that user (mode 0700).
-chmod 0711 /mnt/lima-agentvm-db/postgres
-chmod 0711 /mnt/lima-agentvm-db/postgres18
+chmod 0711 /mnt/lima-agentvm-persist/postgres
+chmod 0711 /mnt/lima-agentvm-persist/postgres18
 install -d -m 0755 /etc/shared-dev-db
 cat > /etc/shared-dev-db/compose.yaml <<'EOF'
 services:
@@ -177,12 +194,12 @@ StartLimitIntervalSec=0
 Type=oneshot
 RemainAfterExit=yes
 Environment=DOCKER_HOST=unix://%t/docker.sock
-WorkingDirectory=/mnt/lima-agentvm-db/shared-dev-db
-ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agentvm-db
-ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-db/config/shared-dev-db.env
-ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-db/config/connection.env
-ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-db/config/shared-dev-db.env -f /mnt/lima-agentvm-db/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
-ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-db/config/shared-dev-db.env -f /mnt/lima-agentvm-db/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
+WorkingDirectory=/mnt/lima-agentvm-persist/shared-dev-db
+ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agentvm-persist
+ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-persist/config/shared-dev-db.env
+ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-persist/config/connection.env
+ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-persist/config/shared-dev-db.env -f /mnt/lima-agentvm-persist/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-persist/config/shared-dev-db.env -f /mnt/lima-agentvm-persist/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
 TimeoutStartSec=0
 Restart=on-failure
 RestartSec=30
@@ -201,7 +218,7 @@ curl -fsSLo "/tmp/$NODE_TARBALL" "https://nodejs.org/dist/v$NODE_VERSION/$NODE_T
 tar -xJf "/tmp/$NODE_TARBALL" -C /usr/local --strip-components=1
 rm -f "/tmp/$NODE_TARBALL"
 
-npm install --global "pnpm@$PNPM_VERSION"
+npm install --global "pnpm@$PNPM_VERSION" "t3@$T3_VERSION"
 
 # uv is installed from a pinned release rather than the floating installer.
 UV_TARBALL="uv-x86_64-unknown-linux-gnu.tar.gz"
@@ -225,24 +242,13 @@ install -m 0644 /opt/agent-config/harness/pnpm-workspace.yaml /opt/harness/pnpm-
 )
 rm -rf /tmp/pnpm-store
 
-if [ ! -f /opt/harness/node_modules/@deepseek-ai/dsh/lib/bin.js ]; then
-    echo "dsh is missing from /opt/harness; pnpm install did not complete" >&2
-    exit 1
-fi
-
-cat > /usr/local/bin/dsh <<'EOF'
-#!/bin/sh
-exec node --expose-internals /opt/harness/node_modules/@deepseek-ai/dsh/lib/bin.js "$@"
-EOF
-chmod 0755 /usr/local/bin/dsh
-
 for tool in codex ast-grep sg tree-sitter; do
     if [ -e "/opt/harness/node_modules/.bin/$tool" ]; then
         ln -sfn "/opt/harness/node_modules/.bin/$tool" "/usr/local/bin/$tool"
     fi
 done
 
-# Mount points and the dsh working directory. Do not chmod an existing mount:
+# Mount points. Do not chmod an existing mount:
 # /datasets may be read-only and /new-projects may already belong to the host.
 [ -d /projects ] || install -d -m 0755 /projects
 [ -d /new-projects ] || install -d -m 0775 -o "$AGENT_USER" -g "$AGENT_GROUP" /new-projects
@@ -255,25 +261,25 @@ export NPM_CONFIG_PREFIX="$HOME/.local"
 export PATH="$HOME/.local/bin:$PNPM_HOME:/opt/harness/node_modules/.bin:$PATH"
 export UV_PROJECT_ENVIRONMENT=.venv-agent-container
 export UV_LINK_MODE=copy
-export DSH_TELEMETRY_MODE=DISABLED
-export DSH_PERMISSION_MODE=danger-full-access
-export NARB_NATIVE_CACHE_DIR="$HOME/.cache/native-binaries"
 export GIT_TERMINAL_PROMPT=0
 export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
-if [ -r /mnt/lima-agentvm-db/config/connection.env ]; then
-    . /mnt/lima-agentvm-db/config/connection.env
+if [ -r /mnt/lima-agentvm-persist/config/connection.env ]; then
+    . /mnt/lima-agentvm-persist/config/connection.env
 fi
 EOF
 chmod 0644 /etc/profile.d/agent-env.sh
 ln -sfn /opt/agent-config/bin/shared-db /usr/local/bin/shared-db
 
-# Remove the agent's sudo authorization. Lima needs passwordless sudo during
-# first boot, but the agent must not keep it afterwards.
-deluser "$AGENT_USER" sudo || true
-rm -f /etc/sudoers.d/90-cloud-init-users
+# Grant the guest user passwordless sudo, regardless of Lima's sudo group or
+# cloud-init policy. Validate the rule before installing it.
+sudo_rule=$(mktemp)
+trap 'rm -f "$sudo_rule"' EXIT
+printf '%s ALL=(ALL:ALL) NOPASSWD: ALL\n' "$AGENT_USER" > "$sudo_rule"
+visudo -cf "$sudo_rule"
+install -o root -g root -m 0440 "$sudo_rule" /etc/sudoers.d/99-agentvm-user
 visudo -c
-if su - "$AGENT_USER" -c 'sudo -n true' >/dev/null 2>&1; then
-    echo "sudo is still available for $AGENT_USER" >&2
+if ! su - "$AGENT_USER" -c 'sudo -n true' >/dev/null 2>&1; then
+    echo "passwordless sudo is unavailable for $AGENT_USER" >&2
     exit 1
 fi
 

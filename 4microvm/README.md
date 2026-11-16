@@ -1,4 +1,4 @@
-# Agent VM and persistent database
+# Agent VM and persistent storage
 
 With Lima, uv, just, and virtiofsd installed on the host, put `harnesses` and
 `shared-dev-db` checkouts beside each other, then run from this directory:
@@ -7,7 +7,7 @@ With Lima, uv, just, and virtiofsd installed on the host, put `harnesses` and
 just setup
 ```
 
-This creates the persistent 20 GiB `agentvm-db` disk if missing, creates or starts
+This creates the persistent 20 GiB `agentvm-persist` disk if missing, creates or starts
 `agentvm`, generates private database credentials once, and waits for PostgreSQL
 to become healthy. `just create` is an alias. Rerunning preserves the disk,
 credentials, and databases; it refreshes the database runtime files and restarts
@@ -25,7 +25,7 @@ Conflicting and overlapping mounts are rejected.
 ## Harness configuration and skills
 
 Provisioning links the shared skills from `agent-config/skills/` into the guest's
-`~/.agents/skills/`, where Codex and dsh discover them. The links point into the
+`~/.agents/skills/`, where Codex discovers them. The links point into the
 live read-only config mount, so edits to existing skill content need no recreation.
 Unrelated user skills are preserved; a local directory with the same name causes
 sync to fail rather than overwrite it.
@@ -49,15 +49,14 @@ works from any directory. Database names start with a letter or underscore,
 contain letters, digits or underscores, and are at most 63 characters.
 The base URL is exported in guest login shells without choosing a database
 for every project. For a process that does not read shell profiles, source
-`/mnt/lima-agentvm-db/config/connection.env` explicitly. Both this file and
+`/mnt/lima-agentvm-persist/config/connection.env` explicitly. Both this file and
 `shared-dev-db.env` contain credentials and are private to the guest user.
 PostgreSQL listens on guest loopback; its port is not forwarded to the host.
 
 ## Remote access
 
 New VMs have Tailscale installed, its daemon enabled, and Tailscale SSH
-configured. The guest user is the Tailscale operator and can manage Tailscale
-without general sudo. To enroll the VM, run `tailscale up` in `just shell` and
+configured. The guest user is the Tailscale operator. To enroll the VM, run `tailscale up` in `just shell` and
 follow the sign-in link. A background service enables Tailscale SSH after
 the VM connects; this can take a few seconds. Install Tailscale on your remote device and sign it
 into the same tailnet, then connect using `ssh GUEST_USER@VM_TAILSCALE_NAME`.
@@ -65,32 +64,52 @@ The tailnet's network and SSH access rules must allow the connection.
 
 Tailscale has an upstream issue where an operator configured before the first
 login may still be denied access to `tailscale up` or `tailscale login`. If
-that happens, privileged initial enrollment is needed; the guest user has no
-sudo access. An existing VM does not receive this provisioning change until it
-is recreated. Recreation also discards Tailscale's guest identity.
+that happens, run `sudo tailscale up` instead. Tailscale state lives on the
+persistent disk and survives recreation. Key expiry,
+revocation or tailnet policy may still require reauthentication. Never run two
+VMs using copies of the same Tailscale identity.
+
+### T3 Code
+
+The guest has a pinned T3 Code CLI and `just`. Log in to Codex as the guest
+user, then start T3 from a guest shell or tmux session:
+
+```sh
+codex login --device-auth
+t3 serve --tailscale-serve
+```
+
+Follow the pairing link or code shown by T3 on a device in the same tailnet.
+Tailscale HTTPS and Serve must be enabled for your tailnet, and its policies
+must permit access. Stop the foreground server with Ctrl-C; a tmux session can
+keep it running after disconnect. Alternatively, use T3's desktop-managed SSH
+connection over Tailscale. See the [T3 remote access guide](https://github.com/pingdotgg/t3code/blob/main/docs/user/remote-access.md).
+T3 state, Codex login and sessions, and tmux sessions are lost on VM recreation;
+Tailscale SSH and tmux remain available independently of T3.
 
 ## Persistence and lifecycle
 
 `just stop` and `just start` handle normal use; the database starts at boot.
 `just delete` removes only the VM. `just recreate` rebuilds guest state and
-logins while retaining `agentvm-db`, and refuses to delete an existing VM if its
+logins while retaining `agentvm-persist`, and refuses to delete an existing VM if its
 persistent disk is missing. Both setup and recreation validate the proposed
 configuration before creating disks or deleting an instance.
 
-For a fresh database, stop the VM and run `just delete-db` to permanently
-delete the entire `agentvm-db` disk, including all databases and credentials.
+For a fresh database, stop the VM and run `just delete-persistent-disk` to permanently
+delete the entire `agentvm-persist` disk, including all databases, credentials and the Tailscale identity.
 `just nuke` asks for confirmation before deleting the VM first, then that disk.
 Declining or providing no answer leaves both intact. Run `just setup` afterward
 to create both from scratch. These commands do not affect a host-side database.
 
 Lima keeps the disk under `LIMA_HOME`, rather than
 `/media/dan/data/databases`; check available storage there. To choose another
-initial size, run `just create-db-disk 40GiB` before `just setup`. The automatic
-path never resizes or replaces an existing disk. Never delete `agentvm-db` while its
+initial size, run `just create-persistent-disk 40GiB` before `just setup`. The automatic
+path never resizes or replaces an existing disk. Never delete `agentvm-persist` while its
 data is needed. Back up PostgreSQL independently; a separate disk is not a backup.
 
 The persistent disk stores:
 
+- `tailscale/`: root-only Tailscale device state and credentials.
 - `postgres18/`: PostgreSQL data, mounted at `/var/lib/postgresql` in the container.
 - `config/shared-dev-db.env`: instance settings and generated password.
 - `config/connection.env`: shell export of the connection base URL.
@@ -119,10 +138,14 @@ data.
 
 ## Runtime and troubleshooting
 
-Docker and Compose run as the guest user with rootless Docker. The system daemon
-and socket are masked, and the agent is not in the Docker group. User lingering
-starts the services at boot. Rootless containers do not make this VM a substitute
-for a security boundary.
+The guest user has passwordless sudo, including when running Codex. Guest root
+can read or change persistent Tailscale credentials and databases, modify guest
+security settings, and interact with mounted projects. Take care when deciding
+which host directories to mount into the VM.
+
+Docker and Compose default to rootless Docker as the guest user. The system
+daemon and socket are initially masked; a user with sudo can change that. User
+lingering starts the rootless services at boot.
 
 The systemd user service checks the persistent mount and configuration, then
 waits for Compose health. It retries failed startup; the container's own restart
@@ -138,7 +161,8 @@ journalctl --user -u shared-dev-db.service
 ```
 
 `docker info --format '{{json .SecurityOptions}}'` should include `rootless`.
-`sudo -n true` and `docker -H unix:///var/run/docker.sock info` should fail.
+`sudo -n true` should succeed, while `docker -H unix:///var/run/docker.sock info`
+should fail under the default rootless configuration.
 A writable project mount can be tested by creating a throwaway file directly and
 in a rootless container, then comparing numeric owners with `stat` on host and
 guest. Images running as non-root may produce subordinate IDs; test your actual
@@ -149,10 +173,30 @@ refusal before destructive recreation. A full persistence check requires Lima:
 create a project database and test table, run `just recreate`, then query it in
 the new VM. Recreation deletes the primary VM disk and logins.
 
-The disk is named `agentvm-db` because disk names are shared within `LIMA_HOME`.
-The short name also avoids older Lima ext4 label bugs. An existing disk named
-`pgdata` is not migrated or deleted by these commands; existing VMs need recreation
-to use the new name.
+### Transition from the old disk
+
+The disk is named `agentvm-persist` to stay within the ext4 label limit on older
+Lima versions. The old `agentvm-db` disk and instance are not renamed or deleted
+automatically. Setup refuses to replace an existing VM without the new disk, and
+refuses to create the new disk when the old disk is present.
+
+If the old database and Tailscale identity are not needed, stop and delete the
+old VM, delete its disk, then create the new setup:
+
+```sh
+limactl stop agentvm
+limactl delete --force agentvm
+limactl disk delete agentvm-db
+just setup
+```
+
+These commands permanently discard the old guest, its logins and old disk
+contents. Enroll Tailscale once on the new VM. If you need the old Tailscale
+identity, do not delete the old VM: its `/var/lib/tailscale/tailscaled.state`
+is root-only in the legacy VM, whose guest user has no sudo. A privileged recovery/migration
+procedure is not automated; preserve the VM and disk until the state can be
+copied securely while the daemon is stopped. Never copy it to a location readable
+by the guest user. The legacy `pgdata` disk is also untouched.
 
 ### Database extensions
 

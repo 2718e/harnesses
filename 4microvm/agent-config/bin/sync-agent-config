@@ -1,5 +1,5 @@
 #!/bin/bash
-# Refresh guest configuration and expose shared skills to Codex and dsh.
+# Refresh guest configuration and expose shared skills to Codex.
 set -euo pipefail
 
 config_root=$(cd -- "$(dirname -- "$0")/.." && pwd)
@@ -22,12 +22,11 @@ for manifest in "${skills[@]}"; do
     fi
 done
 
-mkdir -p "$HOME/.codex" "$HOME/.dsh" "$skill_root"
+mkdir -p "$HOME/.codex" "$skill_root"
 install -m 0644 "$config_root/codex/config.toml" "$HOME/.codex/config.toml"
 ln -sfnT "$config_root/AGENTS.md" "$HOME/.codex/AGENTS.md"
-ln -sfnT "$config_root/AGENTS.md" "$HOME/.dsh/AGENTS.md"
 
-# Both harnesses discover ~/.agents/skills. Each bundle stays on the live,
+# Codex discovers ~/.agents/skills. Each bundle stays on the live,
 # read-only /opt/agent-config mount, so skill edits do not require recreation.
 for manifest in "${skills[@]}"; do
     source=$(dirname -- "$manifest")
