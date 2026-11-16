@@ -5,7 +5,7 @@ export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/docker.sock"
 export COMPOSE_PROJECT_NAME=shared-dev-db
-storage=/mnt/lima-agentvm-persist
+storage=/mnt/lima-agvm-p
 source=${SHARED_DEV_DB_SOURCE:-/projects/shared-dev-db}
 runtime=$storage/shared-dev-db
 mountpoint -q "$storage" || { echo "Persistent database disk is not mounted" >&2; exit 1; }

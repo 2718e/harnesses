@@ -33,13 +33,14 @@ def lima_records(*arguments):
 
 def ensure_disk(*, required=False):
     names = {disk.get("name") for disk in lima_records("disk", "list")}
-    if "agentvm-db" in names:
-        fail("legacy agentvm-db disk exists; see README migration instructions before continuing")
-    if "agentvm-persist" in names:
+    legacy = names & {"agentvm-db", "agentvm-persist"}
+    if legacy:
+        fail(f"legacy disk(s) {', '.join(sorted(legacy))} exist; see README migration instructions before continuing")
+    if "agvm-p" in names:
         return
     if required:
-        fail("agentvm-persist disk missing; refusing to replace an existing VM's persistent disk")
-    subprocess.run(["limactl", "disk", "create", "agentvm-persist", "--size", "20GiB"], check=True)
+        fail("agvm-p disk missing; refusing to replace an existing VM's persistent disk")
+    subprocess.run(["limactl", "disk", "create", "agvm-p", "--size", "20GiB"], check=True)
 
 
 def configure_database():
@@ -48,9 +49,17 @@ def configure_database():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("setup", "create", "recreate"))
-    parser.add_argument("source", type=Path)
+    parser.add_argument("action", choices=("setup", "create", "recreate", "check-disk"))
+    parser.add_argument("source", type=Path, nargs="?")
     args = parser.parse_args()
+    if args.action == "check-disk":
+        try:
+            ensure_disk(required=True)
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            fail(f"could not check persistent disk: {error}")
+        return
+    if args.source is None:
+        parser.error("source is required for setup, create and recreate")
     source = args.source.resolve()
     data, _, mounts, config_dir = desired_configuration(source)
     params = data.setdefault("param", {})

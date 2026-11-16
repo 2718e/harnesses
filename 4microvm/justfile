@@ -6,7 +6,7 @@ default:
 
 # Create the persistent disk once. Never run this to replace an existing disk.
 create-persistent-disk size="20GiB":
-    limactl disk create agentvm-persist --size {{size}}
+    limactl disk create agvm-p --size {{size}}
 
 # Create or start the VM, initializing the persistent shared database.
 setup:
@@ -16,17 +16,19 @@ setup:
 create: setup
 
 start:
+    uv run --locked --directory scripts python -m vm_tools.start_vm check-disk
     limactl start --timeout=30m agentvm
 
 stop:
     limactl stop agentvm
 
 restart:
+    uv run --locked --directory scripts python -m vm_tools.start_vm check-disk
     -limactl stop agentvm
     limactl start --timeout=30m agentvm
 
 # Delete and recreate the VM. Guest state and auth are lost; the separately
-# created agentvm-persist disk is retained. Ensure it exists before deleting the VM.
+# created agvm-p disk is retained. Ensure it exists before deleting the VM.
 recreate:
     uv run --locked --directory scripts python -m vm_tools.start_vm recreate ../mountavm.yaml
 
@@ -35,10 +37,10 @@ delete:
 
 # Permanently delete databases, credentials and Tailscale identity. Stop the VM first.
 delete-persistent-disk:
-    limactl disk delete agentvm-persist
+    limactl disk delete agvm-p
 
 # Permanently delete the VM and its persistent disk.
-[confirm("Permanently delete agentvm AND agentvm-persist, including databases, credentials and Tailscale identity?")]
+[confirm("Permanently delete agentvm AND agvm-p, including databases, credentials and Tailscale identity?")]
 nuke:
     @just delete
     @just delete-persistent-disk
@@ -60,7 +62,7 @@ sync-config:
 
 # Show the installed tools and the most recent cloud-init status.
 doctor:
-    limactl shell agentvm bash -lc 'id; for tool in skills just t3 codex ast-grep tree-sitter node pnpm uv docker tmux tailscale; do printf "%s: " "$tool"; command -v "$tool" || true; done; printf "passwordless sudo: "; if sudo -n true; then echo available; else echo unavailable; fi; docker compose version; findmnt /mnt/lima-agentvm-persist; cloud-init status --long || true'
+    limactl shell agentvm bash -lc 'id; for tool in skills just t3 codex ast-grep tree-sitter node pnpm uv docker tmux tailscale; do printf "%s: " "$tool"; command -v "$tool" || true; done; printf "passwordless sudo: "; if sudo -n true; then echo available; else echo unavailable; fi; docker compose version; findmnt /mnt/lima-agvm-p; cloud-init status --long || true'
 
 snapshot:
     limactl snapshot create agentvm --tag baseline

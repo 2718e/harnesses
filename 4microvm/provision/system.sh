@@ -67,17 +67,17 @@ apt-get update
 # Mask before package installation so its post-install hook cannot start a daemon
 # using disposable root-disk state. Refuse to proceed without the real disk.
 systemctl mask tailscaled.service
-mountpoint -q /mnt/lima-agentvm-persist || { echo "persistent disk is not mounted" >&2; exit 1; }
-install -d -m 0700 -o root -g root /mnt/lima-agentvm-persist/tailscale
+mountpoint -q /mnt/lima-agvm-p || { echo "persistent disk is not mounted" >&2; exit 1; }
+install -d -m 0700 -o root -g root /mnt/lima-agvm-p/tailscale
 apt-get install -y tailscale
 install -d -m 0755 /etc/systemd/system/tailscaled.service.d
 cat > /etc/systemd/system/tailscaled.service.d/persistent-state.conf <<'EOF'
 [Unit]
-RequiresMountsFor=/mnt/lima-agentvm-persist
+RequiresMountsFor=/mnt/lima-agvm-p
 [Service]
-ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agentvm-persist
+ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agvm-p
 ExecStart=
-ExecStart=/usr/sbin/tailscaled --state=/mnt/lima-agentvm-persist/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=${PORT} $FLAGS
+ExecStart=/usr/sbin/tailscaled --state=/mnt/lima-agvm-p/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=${PORT} $FLAGS
 EOF
 systemctl daemon-reload
 systemctl unmask tailscaled.service
@@ -132,21 +132,21 @@ loginctl enable-linger "$AGENT_USER"
 
 # The disk and its environment file are intentionally independent of the VM.
 # User provisioning initializes private settings and starts the service.
-if ! mountpoint -q /mnt/lima-agentvm-persist; then
-    echo "persistent agentvm-persist disk is not mounted; refusing to provision database storage" >&2
+if ! mountpoint -q /mnt/lima-agvm-p; then
+    echo "persistent agvm-p disk is not mounted; refusing to provision database storage" >&2
     exit 1
 fi
-install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-persist/config
+install -d -m 0700 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agvm-p/config
 # The disk root belongs to root. Create an empty destination the guest user
 # can snapshot runtime files into, without changing existing ownership.
-if [ ! -e /mnt/lima-agentvm-persist/shared-dev-db ]; then
-    install -d -m 0755 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-persist/shared-dev-db
+if [ ! -e /mnt/lima-agvm-p/shared-dev-db ]; then
+    install -d -m 0755 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agvm-p/shared-dev-db
 fi
-if [ ! -d /mnt/lima-agentvm-persist/postgres ]; then
-    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-persist/postgres
+if [ ! -d /mnt/lima-agvm-p/postgres ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agvm-p/postgres
 fi
-if [ ! -d /mnt/lima-agentvm-persist/postgres18 ]; then
-    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agentvm-persist/postgres18
+if [ ! -d /mnt/lima-agvm-p/postgres18 ]; then
+    install -d -m 0711 -o "$AGENT_USER" -g "$AGENT_GROUP" /mnt/lima-agvm-p/postgres18
 fi
 # Rootless container file owners depend on the guest UID and subordinate ID
 # ranges. Refuse to attach old data with a different or unknown mapping.
@@ -156,7 +156,7 @@ if [ -z "$subuid" ] || [ -z "$subgid" ]; then
     echo "missing subordinate UID/GID ranges for $AGENT_USER" >&2
     exit 1
 fi
-identity_file=/mnt/lima-agentvm-persist/config/rootless-identity
+identity_file=/mnt/lima-agvm-p/config/rootless-identity
 identity=$(printf 'uid=%s\ngid=%s\nsubuid=%s\nsubgid=%s' "$(id -u "$AGENT_USER")" "$(id -g "$AGENT_USER")" "$subuid" "$subgid")
 if [ -e "$identity_file" ]; then
     if [ "$(cat "$identity_file")" != "$identity" ]; then
@@ -164,7 +164,7 @@ if [ -e "$identity_file" ]; then
         exit 1
     fi
 else
-    if [ -n "$(find /mnt/lima-agentvm-persist/postgres /mnt/lima-agentvm-persist/postgres18 -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+    if [ -n "$(find /mnt/lima-agvm-p/postgres /mnt/lima-agvm-p/postgres18 -mindepth 1 -maxdepth 1 -print -quit)" ]; then
         echo "existing database data has no rootless identity record; migrate it before continuing" >&2
         exit 1
     fi
@@ -174,8 +174,8 @@ else
 fi
 # The image runs initdb as its postgres user, which must traverse this parent
 # directory. PGDATA itself remains private to that user (mode 0700).
-chmod 0711 /mnt/lima-agentvm-persist/postgres
-chmod 0711 /mnt/lima-agentvm-persist/postgres18
+chmod 0711 /mnt/lima-agvm-p/postgres
+chmod 0711 /mnt/lima-agvm-p/postgres18
 install -d -m 0755 /etc/shared-dev-db
 cat > /etc/shared-dev-db/compose.yaml <<'EOF'
 services:
@@ -195,12 +195,12 @@ StartLimitIntervalSec=0
 Type=oneshot
 RemainAfterExit=yes
 Environment=DOCKER_HOST=unix://%t/docker.sock
-WorkingDirectory=/mnt/lima-agentvm-persist/shared-dev-db
-ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agentvm-persist
-ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-persist/config/shared-dev-db.env
-ExecStartPre=/usr/bin/test -f /mnt/lima-agentvm-persist/config/connection.env
-ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-persist/config/shared-dev-db.env -f /mnt/lima-agentvm-persist/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
-ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agentvm-persist/config/shared-dev-db.env -f /mnt/lima-agentvm-persist/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
+WorkingDirectory=/mnt/lima-agvm-p/shared-dev-db
+ExecStartPre=/usr/bin/mountpoint -q /mnt/lima-agvm-p
+ExecStartPre=/usr/bin/test -f /mnt/lima-agvm-p/config/shared-dev-db.env
+ExecStartPre=/usr/bin/test -f /mnt/lima-agvm-p/config/connection.env
+ExecStart=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agvm-p/config/shared-dev-db.env -f /mnt/lima-agvm-p/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml up -d --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose --project-name shared-dev-db --env-file /mnt/lima-agvm-p/config/shared-dev-db.env -f /mnt/lima-agvm-p/shared-dev-db/compose.yaml -f /etc/shared-dev-db/compose.yaml stop
 TimeoutStartSec=0
 Restart=on-failure
 RestartSec=30
@@ -269,8 +269,8 @@ export UV_PROJECT_ENVIRONMENT=.venv-agent-container
 export UV_LINK_MODE=copy
 export GIT_TERMINAL_PROMPT=0
 export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
-if [ -r /mnt/lima-agentvm-persist/config/connection.env ]; then
-    . /mnt/lima-agentvm-persist/config/connection.env
+if [ -r /mnt/lima-agvm-p/config/connection.env ]; then
+    . /mnt/lima-agvm-p/config/connection.env
 fi
 EOF
 chmod 0644 /etc/profile.d/agent-env.sh

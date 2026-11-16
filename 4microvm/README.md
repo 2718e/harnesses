@@ -7,7 +7,7 @@ With Lima, uv, just, and virtiofsd installed on the host, put `harnesses` and
 just setup
 ```
 
-This creates the persistent 20 GiB `agentvm-persist` disk if missing, creates or starts
+This creates the persistent 20 GiB `agvm-p` disk if missing, creates or starts
 `agentvm`, generates private database credentials once, and waits for PostgreSQL
 to become healthy. `just create` is an alias. Rerunning preserves the disk,
 credentials, and databases; it refreshes the database runtime files and restarts
@@ -58,7 +58,7 @@ works from any directory. Database names start with a letter or underscore,
 contain letters, digits or underscores, and are at most 63 characters.
 The base URL is exported in guest login shells without choosing a database
 for every project. For a process that does not read shell profiles, source
-`/mnt/lima-agentvm-persist/config/connection.env` explicitly. Both this file and
+`/mnt/lima-agvm-p/config/connection.env` explicitly. Both this file and
 `shared-dev-db.env` contain credentials and are private to the guest user.
 PostgreSQL listens on guest loopback; its port is not forwarded to the host.
 
@@ -100,12 +100,12 @@ Tailscale SSH and tmux remain available independently of T3.
 
 `just stop` and `just start` handle normal use; the database starts at boot.
 `just delete` removes only the VM. `just recreate` rebuilds guest state and
-logins while retaining `agentvm-persist`, and refuses to delete an existing VM if its
+logins while retaining `agvm-p`, and refuses to delete an existing VM if its
 persistent disk is missing. Both setup and recreation validate the proposed
 configuration before creating disks or deleting an instance.
 
 For a fresh database, stop the VM and run `just delete-persistent-disk` to permanently
-delete the entire `agentvm-persist` disk, including all databases, credentials and the Tailscale identity.
+delete the entire `agvm-p` disk, including all databases, credentials and the Tailscale identity.
 `just nuke` asks for confirmation before deleting the VM first, then that disk.
 Declining or providing no answer leaves both intact. Run `just setup` afterward
 to create both from scratch. These commands do not affect a host-side database.
@@ -113,7 +113,7 @@ to create both from scratch. These commands do not affect a host-side database.
 Lima keeps the disk under `LIMA_HOME`, rather than
 `/media/dan/data/databases`; check available storage there. To choose another
 initial size, run `just create-persistent-disk 40GiB` before `just setup`. The automatic
-path never resizes or replaces an existing disk. Never delete `agentvm-persist` while its
+path never resizes or replaces an existing disk. Never delete `agvm-p` while its
 data is needed. Back up PostgreSQL independently; a separate disk is not a backup.
 
 The persistent disk stores:
@@ -184,28 +184,29 @@ the new VM. Recreation deletes the primary VM disk and logins.
 
 ### Transition from the old disk
 
-The disk is named `agentvm-persist` to stay within the ext4 label limit on older
-Lima versions. The old `agentvm-db` disk and instance are not renamed or deleted
-automatically. Setup refuses to replace an existing VM without the new disk, and
-refuses to create the new disk when the old disk is present.
+The disk is named `agvm-p` so its `lima-` prefixed ext4 label fits in
+16 bytes. Some Lima versions can silently reformat longer-named disks on boot.
+In particular, `agentvm-persist` is affected: do not restart a VM using it.
+The old `agentvm-persist` and `agentvm-db` disks and the existing instance are
+not renamed or deleted automatically. The setup, recreate, start and restart
+helpers refuse to proceed while either legacy disk exists. Direct `limactl`
+commands bypass that guard.
 
-If the old database and Tailscale identity are not needed, stop and delete the
-old VM, delete its disk, then create the new setup:
+If the current database and Tailscale identity on `agentvm-persist` are not
+needed, stop and delete the old VM, delete that disk, then create the new setup:
 
 ```sh
 limactl stop agentvm
 limactl delete --force agentvm
-limactl disk delete agentvm-db
+limactl disk delete agentvm-persist
 just setup
 ```
 
 These commands permanently discard the old guest, its logins and old disk
-contents. Enroll Tailscale once on the new VM. If you need the old Tailscale
-identity, do not delete the old VM: its `/var/lib/tailscale/tailscaled.state`
-is root-only in the legacy VM, whose guest user has no sudo. A privileged recovery/migration
-procedure is not automated; preserve the VM and disk until the state can be
-copied securely while the daemon is stopped. Never copy it to a location readable
-by the guest user. The legacy `pgdata` disk is also untouched.
+contents. Enroll Tailscale once on the new VM. If the old disk is `agentvm-db`,
+substitute that name in the disk deletion command. If data or the Tailscale
+identity is needed, back it up while the current VM is still running before
+stopping it. Migration is not automated. The legacy `pgdata` disk is untouched.
 
 ### Database extensions
 
