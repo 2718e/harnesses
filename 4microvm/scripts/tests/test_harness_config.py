@@ -87,7 +87,7 @@ class NukeConfirmationTests(unittest.TestCase):
     def test_confirmation_deletes_vm_then_disk(self):
         result, calls = self.invoke('y\n')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(calls, ['delete --force agentvm', 'disk delete agentvm-persist'])
+        self.assertEqual(calls, ['delete --force agentvm', 'disk delete agvm-p'])
 
 
 if __name__ == '__main__':

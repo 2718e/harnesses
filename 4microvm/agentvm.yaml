@@ -17,9 +17,10 @@ containerd:
   system: false
 
 # Created automatically by `just setup`; it survives VM deletion.
-# Keep the name short: older Lima versions have an ext4 label length bug.
+# Lima adds "lima-" to the ext4 label, which has a 16-byte limit. The disk
+# name must be at most 11 ASCII bytes to avoid reformatting on older Lima.
 additionalDisks:
-  - name: agentvm-persist
+  - name: agvm-p
     format: true
     fsType: ext4
 

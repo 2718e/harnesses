@@ -2,5 +2,5 @@
 set -euo pipefail
 export DOCKER_HOST="unix:///run/user/$(id -u)/docker.sock"
 export COMPOSE_PROJECT_NAME=shared-dev-db
-export COMPOSE_ENV_FILE=/mnt/lima-agentvm-persist/config/shared-dev-db.env
-exec /mnt/lima-agentvm-persist/shared-dev-db/scripts/create-db.sh "$@"
+export COMPOSE_ENV_FILE=/mnt/lima-agvm-p/config/shared-dev-db.env
+exec /mnt/lima-agvm-p/shared-dev-db/scripts/create-db.sh "$@"
