@@ -16,8 +16,8 @@ bash /opt/agent-config/bin/setup-shared-dev-db
 
 bash /opt/agent-config/bin/sync-agent-config
 
-# Install only the project setup skill globally from the mounted Git checkout.
-/usr/local/bin/skills add /opt/skills-repo --agent agents --skill baseline-setup --global --yes
+# Install only the project setup skill globally from the public skills repository.
+/usr/local/bin/skills add https://github.com/2718e/skills --agent agents --skill opinionated-setup --global --yes
 
 git config --global user.name "Agent"
 git config --global user.email "agent@localhost"

@@ -13,7 +13,7 @@ to become healthy. `just create` is an alias. Rerunning preserves the disk,
 credentials, and databases; it refreshes the database runtime files and restarts
 the database service, briefly interrupting connections.
 
-No `mountavm.yaml` is needed for the base VM, database, and sibling skills checkout. To add project mounts,
+No `mountavm.yaml` is needed for the base VM and database. To add project mounts,
 copy `mountavm.example.yaml` to `mountavm.yaml` and edit the paths before setup.
 A read-only `/projects/shared-dev-db` entry can select another source checkout;
 otherwise the launcher uses the sibling repository. The launcher supplies
@@ -30,20 +30,18 @@ A startup timeout alone does not show whether provisioning succeeded.
 
 ## Harness configuration and skills
 
-The sibling `skills` Git checkout is mounted read-only at `/opt/skills-repo`.
-It must contain a committed `baseline-setup/SKILL.md`: the installer clones the
-repository, so uncommitted edits are not installed. Provisioning installs the
-[skills CLI](https://github.com/owainlewis/skills) and uses it to install only
-`baseline-setup` globally into `~/.agents/skills` for Codex. The build and review
-skills are available in the repository but are not installed globally.
+Provisioning installs the [skills CLI](https://github.com/owainlewis/skills)
+and uses it to install only `opinionated-setup` globally into `~/.agents/skills`
+for Codex, from the public [2718e/skills repository](https://github.com/2718e/skills).
+The installer needs network access during VM creation. Other skills can be
+installed per project with the `skills` command.
 
-The default source is `../skills` relative to this repository. To select a
-different checkout, add a read-only `/opt/skills-repo` entry to
-`mountavm.yaml`. After changing mounts on an existing VM, stop it and run
-`just update-mounts`. Recreate the VM to reinstall user-level skills from the
-current committed checkout; `just sync-config` refreshes Codex configuration
-only. Project-level skill installation can use the `skills` command separately.
-Restart Codex after changing installed skills.
+A local skills checkout is not required for provisioning. To edit it from the
+VM, add it as a writable project mount in `mountavm.yaml`. For an existing VM,
+stop it and run `just update-mounts` to apply mount changes. Recreate the VM to
+install the new global skill; `just sync-config` refreshes Codex configuration
+only. Recreation replaces the guest's primary disk and logins but retains the
+persistent disk. Restart Codex after changing installed skills.
 
 ## Use the database
 

@@ -4,7 +4,6 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_SKILLS_SOURCE = Path(__file__).resolve().parents[4] / "skills"
 DEFAULT_DATABASE_SOURCE = Path(__file__).resolve().parents[4] / "shared-dev-db"
 
 
@@ -66,7 +65,7 @@ def normalize_mounts(raw_mounts):
         normalized.update(location=location, mountPoint=mount_point, writable=writable)
         # Accept the old local config entry only if it exactly repeats the
         # required mount. This lets existing mountavm.yaml files keep working.
-        if normalized in mounts and mount_point in ("/opt/agent-config", "/projects/shared-dev-db", "/opt/skills-repo"):
+        if normalized in mounts and mount_point in ("/opt/agent-config", "/projects/shared-dev-db"):
             continue
         mounts.append(normalized)
 
@@ -101,16 +100,12 @@ def desired_configuration(source):
     # A local entry may choose another checkout; otherwise use the sibling repo.
     db_mounts = [m for m in local_mounts if isinstance(m, dict) and m.get("mountPoint") == "/projects/shared-dev-db"]
     db_dir = db_mounts[0].get("location") if db_mounts else str(DEFAULT_DATABASE_SOURCE)
-    skills_mounts = [m for m in local_mounts if isinstance(m, dict) and m.get("mountPoint") == "/opt/skills-repo"]
-    skills_dir = skills_mounts[0].get("location") if skills_mounts else str(DEFAULT_SKILLS_SOURCE)
     config_dir = str(base_path.parent / "agent-config")
     for mount in required:
         if mount.get("location") == "{{.Param.AgentConfig}}":
             mount["location"] = config_dir
         elif mount.get("location") == "{{.Param.SharedDevDB}}":
             mount["location"] = db_dir
-        elif mount.get("location") == "{{.Param.SkillsRepo}}":
-            mount["location"] = skills_dir
     combined = normalize_mounts(required + local_mounts)
     return source_data, base_path, combined, config_dir
 

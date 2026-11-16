@@ -35,10 +35,6 @@ mounts:
     mountPoint: /projects/shared-dev-db
     writable: false
 
-  - location: "{{.Param.SkillsRepo}}"
-    mountPoint: /opt/skills-repo
-    writable: false
-
 portForwards:
   # Lima otherwise forwards guest loopback ports to host loopback by default.
   - guestPort: 5432

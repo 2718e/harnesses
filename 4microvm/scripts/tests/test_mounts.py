@@ -21,9 +21,6 @@ class MountMergeTests(unittest.TestCase):
         default_source = patch("vm_tools.mounts.DEFAULT_DATABASE_SOURCE", self.db_source)
         default_source.start()
         self.addCleanup(default_source.stop)
-        skills = patch("vm_tools.mounts.DEFAULT_SKILLS_SOURCE", Path(__file__).resolve().parents[4] / "skills")
-        skills.start()
-        self.addCleanup(skills.stop)
         self.config = Path(__file__).resolve().parents[2] / "agent-config"
 
     def resolve(self, mounts):
@@ -39,7 +36,13 @@ class MountMergeTests(unittest.TestCase):
     def test_missing_local_file_uses_default_mounts(self):
         mounts = desired_configuration(self.source)[2]
         self.assertEqual([m["mountPoint"] for m in mounts],
-                         ["/opt/agent-config", "/projects/shared-dev-db", "/opt/skills-repo"])
+                         ["/opt/agent-config", "/projects/shared-dev-db"])
+
+    def test_skills_checkout_can_be_mounted_as_writable_project(self):
+        skills = Path(self.temp.name) / "skills"
+        skills.mkdir()
+        local = {"location": str(skills), "mountPoint": "/projects/skills", "writable": True}
+        self.assertIn(local, self.resolve([local]))
 
     def test_db_mount_can_select_another_read_only_checkout(self):
         local = {"location": self.temp.name, "mountPoint": "/projects/shared-dev-db", "writable": False}
