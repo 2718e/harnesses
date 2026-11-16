@@ -1,36 +1,7 @@
 #!/bin/bash
-# Refresh guest configuration and expose shared skills to Codex.
+# Refresh guest configuration; skill installation happens at VM creation.
 set -euo pipefail
-
 config_root=$(cd -- "$(dirname -- "$0")/.." && pwd)
-skill_root="$HOME/.agents/skills"
-
-shopt -s nullglob
-skills=("$config_root"/skills/*/SKILL.md)
-if [ "${#skills[@]}" -eq 0 ]; then
-    echo "No shared skills found under $config_root/skills" >&2
-    exit 1
-fi
-
-# Preserve unrelated user skills and refuse to overwrite a locally owned bundle.
-for manifest in "${skills[@]}"; do
-    name=$(basename -- "$(dirname -- "$manifest")")
-    destination="$skill_root/$name"
-    if [ -e "$destination" ] && [ ! -L "$destination" ]; then
-        echo "Refusing to replace existing skill: $destination" >&2
-        exit 1
-    fi
-done
-
-mkdir -p "$HOME/.codex" "$skill_root"
+mkdir -p "$HOME/.codex"
 install -m 0644 "$config_root/codex/config.toml" "$HOME/.codex/config.toml"
 ln -sfnT "$config_root/AGENTS.md" "$HOME/.codex/AGENTS.md"
-
-# Codex discovers ~/.agents/skills. Each bundle stays on the live,
-# read-only /opt/agent-config mount, so skill edits do not require recreation.
-for manifest in "${skills[@]}"; do
-    source=$(dirname -- "$manifest")
-    name=$(basename -- "$source")
-    ln -sfnT "$source" "$skill_root/$name"
-    printf 'Linked skill: %s\n' "$name"
-done

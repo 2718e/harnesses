@@ -10,6 +10,8 @@ from pathlib import Path
 import yaml
 from .mounts import desired_configuration, fail
 
+START_TIMEOUT = "30m"
+
 
 def records(output):
     """Accept both JSON arrays and Lima versions emitting one object per line."""
@@ -76,12 +78,12 @@ def main():
         existing = any(instance.get("name") == "agentvm" for instance in lima_records("list"))
         ensure_disk(required=existing)
         if existing and args.action != "recreate":
-            subprocess.run(["limactl", "start", "--tty=false", "agentvm"], check=True)
+            subprocess.run(["limactl", "start", "--tty=false", f"--timeout={START_TIMEOUT}", "agentvm"], check=True)
             configure_database()
             return
         if existing and args.action == "recreate":
             subprocess.run(["limactl", "delete", "--force", "agentvm"], check=True)
-        subprocess.run(["limactl", "start", "--tty=false", "--name=agentvm", temp_path], check=True)
+        subprocess.run(["limactl", "start", "--tty=false", f"--timeout={START_TIMEOUT}", "--name=agentvm", temp_path], check=True)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         fail(f"could not {args.action} agentvm: {error}")
     finally:

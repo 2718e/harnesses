@@ -22,17 +22,26 @@ available while the VM runs, since its config mount is live. Do not mount the
 active harness checkout as a writable project; use a separate clone instead.
 Conflicting and overlapping mounts are rejected.
 
+VM startup waits up to 30 minutes for provisioning. If it times out, inspect
+the existing VM before recreating it: `limactl list agentvm`, then, if it is
+running, `limactl shell agentvm -- cloud-init status --long` and
+`limactl shell agentvm -- sudo tail -100 /var/log/cloud-init-output.log`.
+A startup timeout alone does not show whether provisioning succeeded.
+
 ## Harness configuration and skills
 
-Provisioning links the shared skills from `agent-config/skills/` into the guest's
-`~/.agents/skills/`, where Codex discovers them. The links point into the
-live read-only config mount, so edits to existing skill content need no recreation.
-Unrelated user skills are preserved; a local directory with the same name causes
-sync to fail rather than overwrite it.
+Provisioning installs the [skills CLI](https://github.com/owainlewis/skills)
+and uses it to install only `opinionated-setup` globally into `~/.agents/skills`
+for Codex, from the public [2718e/skills repository](https://github.com/2718e/skills).
+The installer needs network access during VM creation. Other skills can be
+installed per project with the `skills` command.
 
-For an existing VM, or after adding a new skill, run `just sync-config` from this
-directory. This also refreshes Codex configuration and shared `AGENTS.md` links.
-Restart Codex if the skills do not appear under `$` or `/skills`.
+A local skills checkout is not required for provisioning. To edit it from the
+VM, add it as a writable project mount in `mountavm.yaml`. For an existing VM,
+stop it and run `just update-mounts` to apply mount changes. Recreate the VM to
+install the new global skill; `just sync-config` refreshes Codex configuration
+only. Recreation replaces the guest's primary disk and logins but retains the
+persistent disk. Restart Codex after changing installed skills.
 
 ## Use the database
 

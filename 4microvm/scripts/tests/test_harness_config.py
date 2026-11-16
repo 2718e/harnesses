@@ -34,35 +34,20 @@ class HarnessConfigTests(unittest.TestCase):
             capture_output=True, text=True, timeout=10,
         )
 
-    def test_sync_is_repeatable_preserves_user_skills_and_links_live_content(self):
+    def test_sync_preserves_user_skills_and_refreshes_config(self):
         custom = self.home / '.agents' / 'skills' / 'custom' / 'SKILL.md'
         custom.parent.mkdir(parents=True)
         custom.write_text('user skill\n')
         for _ in range(2):
             result = self.sync()
             self.assertEqual(result.returncode, 0, result.stderr)
-        installed = self.home / '.agents' / 'skills' / 'example'
-        self.assertTrue(installed.is_symlink())
         self.assertEqual(custom.read_text(), 'user skill\n')
-        (self.source / 'skills' / 'example' / 'SKILL.md').write_text('updated skill\n')
-        self.assertEqual((installed / 'SKILL.md').read_text(), 'updated skill\n')
-        for harness in ('.codex',):
-            guidance = self.home / harness / 'AGENTS.md'
-            self.assertTrue(guidance.is_symlink())
-            self.assertEqual(guidance.read_text(), 'VM guidance\n')
-        self.assertEqual(
-            (self.home / '.codex' / 'config.toml').read_text(),
-            (self.source / 'codex' / 'config.toml').read_text(),
-        )
-
-    def test_sync_refuses_to_replace_a_local_bundle(self):
-        local = self.home / '.agents' / 'skills' / 'example' / 'SKILL.md'
-        local.parent.mkdir(parents=True)
-        local.write_text('local work\n')
-        result = self.sync()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Refusing to replace', result.stderr)
-        self.assertEqual(local.read_text(), 'local work\n')
+        self.assertFalse((custom.parent.parent / 'example').exists())
+        guidance = self.home / '.codex' / 'AGENTS.md'
+        self.assertTrue(guidance.is_symlink())
+        self.assertEqual(guidance.read_text(), 'VM guidance\n')
+        self.assertEqual((self.home / '.codex' / 'config.toml').read_text(),
+                         (self.source / 'codex' / 'config.toml').read_text())
 
 
 @unittest.skipUnless(shutil.which('just'), 'just is required')

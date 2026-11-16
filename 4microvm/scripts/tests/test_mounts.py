@@ -38,6 +38,12 @@ class MountMergeTests(unittest.TestCase):
         self.assertEqual([m["mountPoint"] for m in mounts],
                          ["/opt/agent-config", "/projects/shared-dev-db"])
 
+    def test_skills_checkout_can_be_mounted_as_writable_project(self):
+        skills = Path(self.temp.name) / "skills"
+        skills.mkdir()
+        local = {"location": str(skills), "mountPoint": "/projects/skills", "writable": True}
+        self.assertIn(local, self.resolve([local]))
+
     def test_db_mount_can_select_another_read_only_checkout(self):
         local = {"location": self.temp.name, "mountPoint": "/projects/shared-dev-db", "writable": False}
         mounts = self.resolve([local])
