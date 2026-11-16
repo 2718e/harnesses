@@ -13,7 +13,7 @@ to become healthy. `just create` is an alias. Rerunning preserves the disk,
 credentials, and databases; it refreshes the database runtime files and restarts
 the database service, briefly interrupting connections.
 
-No `mountavm.yaml` is needed for the base VM and database. To add project mounts,
+No `mountavm.yaml` is needed for the base VM, database, and sibling skills checkout. To add project mounts,
 copy `mountavm.example.yaml` to `mountavm.yaml` and edit the paths before setup.
 A read-only `/projects/shared-dev-db` entry can select another source checkout;
 otherwise the launcher uses the sibling repository. The launcher supplies
@@ -24,15 +24,20 @@ Conflicting and overlapping mounts are rejected.
 
 ## Harness configuration and skills
 
-Provisioning links the shared skills from `agent-config/skills/` into the guest's
-`~/.agents/skills/`, where Codex discovers them. The links point into the
-live read-only config mount, so edits to existing skill content need no recreation.
-Unrelated user skills are preserved; a local directory with the same name causes
-sync to fail rather than overwrite it.
+The sibling `skills` Git checkout is mounted read-only at `/opt/skills-repo`.
+It must contain a committed `baseline-setup/SKILL.md`: the installer clones the
+repository, so uncommitted edits are not installed. Provisioning installs the
+[skills CLI](https://github.com/owainlewis/skills) and uses it to install only
+`baseline-setup` globally into `~/.agents/skills` for Codex. The build and review
+skills are available in the repository but are not installed globally.
 
-For an existing VM, or after adding a new skill, run `just sync-config` from this
-directory. This also refreshes Codex configuration and shared `AGENTS.md` links.
-Restart Codex if the skills do not appear under `$` or `/skills`.
+The default source is `../skills` relative to this repository. To select a
+different checkout, add a read-only `/opt/skills-repo` entry to
+`mountavm.yaml`. After changing mounts on an existing VM, stop it and run
+`just update-mounts`. Recreate the VM to reinstall user-level skills from the
+current committed checkout; `just sync-config` refreshes Codex configuration
+only. Project-level skill installation can use the `skills` command separately.
+Restart Codex after changing installed skills.
 
 ## Use the database
 

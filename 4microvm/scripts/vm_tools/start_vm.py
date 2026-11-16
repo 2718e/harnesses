@@ -61,9 +61,13 @@ def main():
         if not (db_source / runtime_file).is_file():
             fail(f"missing {db_source / runtime_file}; use the current shared-dev-db checkout")
     params["SharedDevDB"] = str(db_source)
+    skills_source = Path(next(m for m in mounts if m["mountPoint"] == "/opt/skills-repo")["location"])
+    if not (skills_source / "baseline-setup" / "SKILL.md").is_file() or not (skills_source / ".git").exists():
+        fail(f"{skills_source} must be a Git checkout containing baseline-setup/SKILL.md")
+    params["SkillsRepo"] = str(skills_source)
     # Lima merges the required mount from the base; retain all other validated
     # local mounts, including options, and remove the legacy duplicate.
-    data["mounts"] = [m for m in mounts if m["mountPoint"] not in ("/opt/agent-config", "/projects/shared-dev-db")]
+    data["mounts"] = [m for m in mounts if m["mountPoint"] not in ("/opt/agent-config", "/projects/shared-dev-db", "/opt/skills-repo")]
 
     # Place the temporary template next to the source so relative base and
     # provisioning file references keep their normal meaning.

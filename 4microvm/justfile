@@ -54,13 +54,13 @@ update-mounts:
     uv run --locked --directory scripts python -m vm_tools.update_mounts agentvm ../mountavm.yaml
     @echo "Mounts updated. Run 'just start'."
 
-# Refresh harness config and link shared skills into the guest.
+# Refresh harness configuration in the guest.
 sync-config:
     limactl shell agentvm bash /opt/agent-config/bin/sync-agent-config
 
 # Show the installed tools and the most recent cloud-init status.
 doctor:
-    limactl shell agentvm bash -lc 'id; for tool in just t3 codex ast-grep tree-sitter node pnpm uv docker tmux tailscale; do printf "%s: " "$tool"; command -v "$tool" || true; done; printf "passwordless sudo: "; if sudo -n true; then echo available; else echo unavailable; fi; docker compose version; findmnt /mnt/lima-agentvm-persist; cloud-init status --long || true'
+    limactl shell agentvm bash -lc 'id; for tool in skills just t3 codex ast-grep tree-sitter node pnpm uv docker tmux tailscale; do printf "%s: " "$tool"; command -v "$tool" || true; done; printf "passwordless sudo: "; if sudo -n true; then echo available; else echo unavailable; fi; docker compose version; findmnt /mnt/lima-agentvm-persist; cloud-init status --long || true'
 
 snapshot:
     limactl snapshot create agentvm --tag baseline

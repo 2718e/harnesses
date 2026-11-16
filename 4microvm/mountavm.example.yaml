@@ -1,5 +1,5 @@
 # Copy to mountavm.yaml and replace /home/USER with the real host paths.
-# Required agent-config and shared-dev-db mounts are supplied automatically.
+# Required agent-config, skills, and shared-dev-db mounts are supplied automatically.
 # The shared-dev-db source defaults to a sibling checkout of harnesses.
 # Do not make mount locations or mount points overlap.
 # To let the agent work on the harness itself, mount a separate host clone of

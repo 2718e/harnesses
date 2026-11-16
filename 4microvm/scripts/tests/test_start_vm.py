@@ -33,8 +33,13 @@ class SetupTests(unittest.TestCase):
             (db / 'scripts').mkdir(parents=True)
             for name in ('compose.yaml', 'Dockerfile', 'scripts/configure.py', 'scripts/create-db.sh', 'scripts/setup.sh'):
                 (db / name).touch()
+            skills = Path(directory) / 'skills'
+            (skills / 'baseline-setup').mkdir(parents=True)
+            (skills / 'baseline-setup' / 'SKILL.md').touch()
+            (skills / '.git').mkdir()
             source = Path(directory) / 'mountavm.yaml'
             with patch('vm_tools.mounts.DEFAULT_DATABASE_SOURCE', db), \
+                 patch('vm_tools.mounts.DEFAULT_SKILLS_SOURCE', skills), \
                  patch.object(sys, 'argv', ['start_vm', action, str(source)]), \
                  patch.object(start_vm.subprocess, 'run', side_effect=run), \
                  contextlib.redirect_stderr(io.StringIO()):
@@ -43,7 +48,7 @@ class SetupTests(unittest.TestCase):
                         start_vm.main()
                 else:
                     start_vm.main()
-            self.assertEqual(list(Path(directory).iterdir()), [db])
+            self.assertEqual(set(Path(directory).iterdir()), {db, skills})
         return calls
 
     def test_fresh_setup_creates_disk_and_vm(self):
