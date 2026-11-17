@@ -13,4 +13,6 @@ tmux attach -t r
 tmux new -A -s r
 # Start tailscale
 tailscale up
+# start t3 code
+t3 serve --tailscale-serve
 ```
