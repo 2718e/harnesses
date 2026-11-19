@@ -10,11 +10,10 @@ import argparse
 import os
 import re
 import subprocess
-import tempfile
 from pathlib import Path
 
 import yaml
-from .mounts import desired_configuration, fail, load_yaml
+from .mounts import desired_configuration, fail, load_yaml, temporary_yaml
 from .start_vm import records
 
 
@@ -87,8 +86,8 @@ def main():
     remove_unused_mount_params(target_data)
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".yaml", dir=target.parent, delete=False) as handle:
-            temporary = Path(handle.name)
+        handle, temporary = temporary_yaml(target.parent)
+        with handle:
             yaml.safe_dump(target_data, handle, sort_keys=False)
         temporary.chmod(target.stat().st_mode & 0o777)
         subprocess.run(["limactl", "validate", str(temporary)], check=True)

@@ -1,8 +1,16 @@
 import os
+import secrets
 import sys
 from pathlib import Path
 
 import yaml
+
+
+def temporary_yaml(directory):
+    """Create a private temporary YAML file with a Lima-valid identifier."""
+    path = Path(directory) / f"tmp{secrets.token_hex(12)}.yaml"
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    return os.fdopen(descriptor, "w", encoding="utf-8"), path
 
 
 def fail(message):

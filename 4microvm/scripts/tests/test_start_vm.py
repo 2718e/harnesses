@@ -45,6 +45,7 @@ class SetupTests(unittest.TestCase):
         calls = self.run_setup()
         self.assertIn(['limactl', 'disk', 'create', 'agvm-p', '--size', '20GiB'], calls)
         self.assertTrue(any('--name=agentvm' in c and '--timeout=30m' in c for c in calls))
+        self.assertRegex(Path(calls[0][2]).stem, r'^[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$')
 
     def test_rerun_reuses_disk_and_instance(self):
         calls = self.run_setup(existing=True, disk=True)

@@ -4,11 +4,10 @@ import argparse
 import json
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 import yaml
-from .mounts import desired_configuration, fail
+from .mounts import desired_configuration, fail, temporary_yaml
 
 START_TIMEOUT = "30m"
 
@@ -74,8 +73,9 @@ def main():
     # provisioning file references keep their normal meaning.
     temp_path = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".yaml", dir=source.parent, delete=False) as handle:
-            temp_path = handle.name
+        handle, temporary = temporary_yaml(source.parent)
+        temp_path = str(temporary)
+        with handle:
             yaml.safe_dump(data, handle, sort_keys=False)
         subprocess.run(["limactl", "validate", temp_path], check=True)
         existing = any(instance.get("name") == "agentvm" for instance in lima_records("list"))

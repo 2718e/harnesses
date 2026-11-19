@@ -64,6 +64,8 @@ class UpdateMountTests(unittest.TestCase):
                     update_mounts.main()
                     self.assertEqual(yaml.safe_load(target.read_text())["mounts"], mounts)
                 self.assertEqual(validate.call_args.args[0][:2], ["limactl", "validate"])
+                self.assertRegex(Path(validate.call_args.args[0][2]).stem,
+                                 r'^[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$')
             self.assertEqual(list(Path(directory).glob("*.yaml")), [target])
 
     def test_validation_failure_preserves_configuration(self):
