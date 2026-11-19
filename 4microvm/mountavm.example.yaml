@@ -19,9 +19,3 @@ mounts:
   - location: "/home/USER/dev/datasets"
     mountPoint: "/datasets"
     writable: false
-
-  # Optional: create a private host directory on separate storage first.
-  # See docs/shared_dev_db.md for rootless permissions and backup setup.
-  # - location: "/home/USER/backups/shared-dev-db"
-  #   mountPoint: "/mnt/shared-dev-db-backups"
-  #   writable: true
