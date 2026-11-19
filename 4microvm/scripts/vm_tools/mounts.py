@@ -1,10 +1,16 @@
 import os
+import secrets
 import sys
 from pathlib import Path
 
 import yaml
 
-DEFAULT_DATABASE_SOURCE = Path(__file__).resolve().parents[4] / "shared-dev-db"
+
+def temporary_yaml(directory):
+    """Create a private temporary YAML file with a Lima-valid identifier."""
+    path = Path(directory) / f"tmp{secrets.token_hex(12)}.yaml"
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    return os.fdopen(descriptor, "w", encoding="utf-8"), path
 
 
 def fail(message):
@@ -97,15 +103,10 @@ def desired_configuration(source):
     local_mounts = source_data.get("mounts", [])
     if not isinstance(local_mounts, list):
         fail("local mounts must be a list")
-    # A local entry may choose another checkout; otherwise use the sibling repo.
-    db_mounts = [m for m in local_mounts if isinstance(m, dict) and m.get("mountPoint") == "/projects/shared-dev-db"]
-    db_dir = db_mounts[0].get("location") if db_mounts else str(DEFAULT_DATABASE_SOURCE)
     config_dir = str(base_path.parent / "agent-config")
     for mount in required:
         if mount.get("location") == "{{.Param.AgentConfig}}":
             mount["location"] = config_dir
-        elif mount.get("location") == "{{.Param.SharedDevDB}}":
-            mount["location"] = db_dir
     combined = normalize_mounts(required + local_mounts)
     return source_data, base_path, combined, config_dir
 

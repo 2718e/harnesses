@@ -4,11 +4,10 @@ import argparse
 import json
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 import yaml
-from .mounts import desired_configuration, fail
+from .mounts import desired_configuration, fail, temporary_yaml
 
 START_TIMEOUT = "30m"
 
@@ -66,22 +65,17 @@ def main():
     if not isinstance(params, dict):
         fail("param must be a mapping")
     params["AgentConfig"] = config_dir
-    db_mount = next(m for m in mounts if m["mountPoint"] == "/projects/shared-dev-db")
-    db_source = Path(db_mount["location"])
-    for runtime_file in ("compose.yaml", "Dockerfile", "scripts/configure.py", "scripts/create-db.sh", "scripts/setup.sh"):
-        if not (db_source / runtime_file).is_file():
-            fail(f"missing {db_source / runtime_file}; use the current shared-dev-db checkout")
-    params["SharedDevDB"] = str(db_source)
     # Lima merges the required mount from the base; retain all other validated
-    # local mounts, including options, and remove the legacy duplicate.
-    data["mounts"] = [m for m in mounts if m["mountPoint"] not in ("/opt/agent-config", "/projects/shared-dev-db")]
+    # local mounts, including options, and remove the required duplicate.
+    data["mounts"] = [m for m in mounts if m["mountPoint"] != "/opt/agent-config"]
 
     # Place the temporary template next to the source so relative base and
     # provisioning file references keep their normal meaning.
     temp_path = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".yaml", dir=source.parent, delete=False) as handle:
-            temp_path = handle.name
+        handle, temporary = temporary_yaml(source.parent)
+        temp_path = str(temporary)
+        with handle:
             yaml.safe_dump(data, handle, sort_keys=False)
         subprocess.run(["limactl", "validate", temp_path], check=True)
         existing = any(instance.get("name") == "agentvm" for instance in lima_records("list"))

@@ -6,14 +6,22 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/docker.sock"
 export COMPOSE_PROJECT_NAME=shared-dev-db
 storage=/mnt/lima-agvm-p
-source=${SHARED_DEV_DB_SOURCE:-/projects/shared-dev-db}
+source=${SHARED_DEV_DB_SOURCE:-}
+if [[ -z $source ]]; then
+    checkout=$(mktemp -d)
+    trap 'rm -rf "$checkout"' EXIT
+    git clone --depth 1 --branch "${SHARED_DEV_DB_BRANCH:-main}" https://github.com/2718e/shared-dev-db.git "$checkout/source"
+    source=$checkout/source
+fi
 runtime=$storage/shared-dev-db
 mountpoint -q "$storage" || { echo "Persistent database disk is not mounted" >&2; exit 1; }
-if [[ ! -f $source/compose.yaml || ! -f $source/scripts/configure.py || ! -f $source/Dockerfile ]]; then
-    echo "Mount the current shared-dev-db repository at $source before running setup." >&2
-    exit 1
-fi
-# Snapshot runtime files, including uncommitted edits, without copying host
+for file in compose.yaml Dockerfile scripts/configure.py scripts/create-db.sh scripts/setup.sh; do
+    if [[ ! -f $source/$file ]]; then
+        echo "The shared-dev-db source at $source is incomplete: missing $file." >&2
+        exit 1
+    fi
+done
+# Snapshot runtime files, including any local edits, without copying source
 # credentials/data/Git metadata. Normal boots need only this persistent copy.
 # Stop before updating files used by ExecStop as well as ExecStart.
 python3 "$source/scripts/configure.py" \

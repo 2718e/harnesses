@@ -32,9 +32,6 @@ mounts:
   - location: "{{.Param.AgentConfig}}"
     mountPoint: /opt/agent-config
     writable: false
-  - location: "{{.Param.SharedDevDB}}"
-    mountPoint: /projects/shared-dev-db
-    writable: false
 
 portForwards:
   # Lima otherwise forwards guest loopback ports to host loopback by default.

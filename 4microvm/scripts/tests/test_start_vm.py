@@ -29,13 +29,8 @@ class SetupTests(unittest.TestCase):
                 return subprocess.CompletedProcess(command, 0, '[{"name":"agvm-p"}]' if disk else '[]')
             return subprocess.CompletedProcess(command, 0)
         with tempfile.TemporaryDirectory() as directory:
-            db = Path(directory) / 'db-source'
-            (db / 'scripts').mkdir(parents=True)
-            for name in ('compose.yaml', 'Dockerfile', 'scripts/configure.py', 'scripts/create-db.sh', 'scripts/setup.sh'):
-                (db / name).touch()
             source = Path(directory) / 'mountavm.yaml'
-            with patch('vm_tools.mounts.DEFAULT_DATABASE_SOURCE', db), \
-                 patch.object(sys, 'argv', ['start_vm', action, str(source)]), \
+            with patch.object(sys, 'argv', ['start_vm', action, str(source)]), \
                  patch.object(start_vm.subprocess, 'run', side_effect=run), \
                  contextlib.redirect_stderr(io.StringIO()):
                 if invalid or (action == 'recreate' and existing and not disk):
@@ -43,13 +38,14 @@ class SetupTests(unittest.TestCase):
                         start_vm.main()
                 else:
                     start_vm.main()
-            self.assertEqual(set(Path(directory).iterdir()), {db})
+            self.assertEqual(set(Path(directory).iterdir()), set())
         return calls
 
     def test_fresh_setup_creates_disk_and_vm(self):
         calls = self.run_setup()
         self.assertIn(['limactl', 'disk', 'create', 'agvm-p', '--size', '20GiB'], calls)
         self.assertTrue(any('--name=agentvm' in c and '--timeout=30m' in c for c in calls))
+        self.assertRegex(Path(calls[0][2]).stem, r'^[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*$')
 
     def test_rerun_reuses_disk_and_instance(self):
         calls = self.run_setup(existing=True, disk=True)
