@@ -12,6 +12,37 @@ from vm_tools import update_mounts
 
 
 class UpdateMountTests(unittest.TestCase):
+    def test_removes_only_unused_legacy_mount_parameters(self):
+        config = {"param": {"AgentConfig": "/config", "SharedDevDB": "/db", "Other": "keep"},
+                  "mounts": [], "provision": [{"script": "{{.Param.SharedDevDB}}"}]}
+        update_mounts.remove_unused_mount_params(config)
+        self.assertEqual(config["param"], {"SharedDevDB": "/db", "Other": "keep"})
+
+    def test_removes_empty_parameter_mapping(self):
+        config = {"param": {"AgentConfig": "/config"}, "mounts": []}
+        update_mounts.remove_unused_mount_params(config)
+        self.assertNotIn("param", config)
+
+    def test_lima_output_formats_find_instances(self):
+        examples = [
+            '{"name":"agentvm","status":"Stopped"}',
+            '[{"name":"agentvm","status":"Stopped"}]',
+            '{"name":"other"}\n{"name":"agentvm","status":"Stopped"}\n',
+        ]
+        for output in examples:
+            with self.subTest(output=output), patch.object(
+                update_mounts.subprocess, "run",
+                return_value=subprocess.CompletedProcess([], 0, stdout=output),
+            ):
+                self.assertEqual(update_mounts.find_instance("agentvm")["status"], "Stopped")
+
+    def test_invalid_lima_output_reports_error(self):
+        with patch.object(update_mounts.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout="bad json")), \
+             contextlib.redirect_stderr(io.StringIO()) as errors:
+            with self.assertRaises(SystemExit):
+                update_mounts.instance_records()
+            self.assertIn("could not parse limactl output", errors.getvalue())
+
     def run_update(self, validation_fails):
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "lima.yaml"

@@ -60,6 +60,10 @@ update-mounts:
 sync-config:
     limactl shell agentvm bash /opt/agent-config/bin/sync-agent-config
 
+# Fetch and build the database source in a running VM, then restart its service.
+update-shared-dev-db:
+    limactl shell agentvm bash /opt/agent-config/bin/setup-shared-dev-db
+
 # Show the installed tools and the most recent cloud-init status.
 doctor:
     limactl shell agentvm bash -lc 'id; for tool in skills just t3 codex ast-grep tree-sitter node pnpm uv docker tmux tailscale; do printf "%s: " "$tool"; command -v "$tool" || true; done; printf "passwordless sudo: "; if sudo -n true; then echo available; else echo unavailable; fi; docker compose version; findmnt /mnt/lima-agvm-p; cloud-init status --long || true'

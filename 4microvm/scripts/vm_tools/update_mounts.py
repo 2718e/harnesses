@@ -7,14 +7,15 @@ existing VM.
 """
 
 import argparse
-import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
 
 import yaml
 from .mounts import desired_configuration, fail, load_yaml
+from .start_vm import records
 
 
 def instance_records():
@@ -30,12 +31,9 @@ def instance_records():
     except subprocess.CalledProcessError as error:
         fail(f"limactl list --json failed: {error.stderr.strip()}")
     try:
-        records = json.loads(result.stdout)
-    except json.JSONDecodeError as error:
+        return records(result.stdout)
+    except ValueError as error:
         fail(f"could not parse limactl output: {error}")
-    if isinstance(records, dict):
-        records = records.get("instances", [])
-    return records
 
 
 def find_instance(name):
@@ -43,6 +41,20 @@ def find_instance(name):
         if record.get("name") == name:
             return record
     fail(f"Lima instance not found: {name}")
+
+
+def remove_unused_mount_params(config):
+    """Drop old mount-only parameters after replacing templated mounts."""
+    params = config.get("param")
+    if not isinstance(params, dict):
+        return
+    rest = {key: value for key, value in config.items() if key != "param"}
+    remaining = yaml.safe_dump(rest)
+    for name in ("AgentConfig", "SharedDevDB"):
+        if name in params and not re.search(r"\.Param\." + name + r"\b", remaining):
+            del params[name]
+    if not params:
+        del config["param"]
 
 
 def main():
@@ -72,6 +84,7 @@ def main():
         fail(f"instance YAML is not a mapping: {target}")
 
     target_data["mounts"] = mounts
+    remove_unused_mount_params(target_data)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".yaml", dir=target.parent, delete=False) as handle:

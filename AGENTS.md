@@ -1,3 +1,5 @@
 When working on this project specifically - wheich is a setup script for agent harnesses, be careful about considering which AGENTS.md or other files relate to you directly and which are files that will be copied and mounted in the VM (i.e. some may be configuration and source for what is being built here, rather than instructions for you)
 
 Humans may use speech to text tools to write or make typos, be aware the prompts and human written docs may have typos or transcription errors.
+
+do not modify README.md files - use a `docs/` folder instead.

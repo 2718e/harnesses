@@ -66,15 +66,9 @@ def main():
     if not isinstance(params, dict):
         fail("param must be a mapping")
     params["AgentConfig"] = config_dir
-    db_mount = next(m for m in mounts if m["mountPoint"] == "/projects/shared-dev-db")
-    db_source = Path(db_mount["location"])
-    for runtime_file in ("compose.yaml", "Dockerfile", "scripts/configure.py", "scripts/create-db.sh", "scripts/setup.sh"):
-        if not (db_source / runtime_file).is_file():
-            fail(f"missing {db_source / runtime_file}; use the current shared-dev-db checkout")
-    params["SharedDevDB"] = str(db_source)
     # Lima merges the required mount from the base; retain all other validated
-    # local mounts, including options, and remove the legacy duplicate.
-    data["mounts"] = [m for m in mounts if m["mountPoint"] not in ("/opt/agent-config", "/projects/shared-dev-db")]
+    # local mounts, including options, and remove the required duplicate.
+    data["mounts"] = [m for m in mounts if m["mountPoint"] != "/opt/agent-config"]
 
     # Place the temporary template next to the source so relative base and
     # provisioning file references keep their normal meaning.
