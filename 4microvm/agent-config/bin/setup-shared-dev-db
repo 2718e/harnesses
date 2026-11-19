@@ -6,14 +6,32 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/docker.sock"
 export COMPOSE_PROJECT_NAME=shared-dev-db
 storage=/mnt/lima-agvm-p
-source=${SHARED_DEV_DB_SOURCE:-/projects/shared-dev-db}
+# Fetch into a temporary directory so a failed download leaves the running
+# service and its persistent runtime snapshot untouched.
+source=${SHARED_DEV_DB_SOURCE:-}
+if [[ -z $source ]]; then
+    checkout=$(mktemp -d)
+    trap 'rm -rf "$checkout"' EXIT
+    git clone --depth 1 --branch "${SHARED_DEV_DB_BRANCH:-enable-incremental-backups}" https://github.com/2718e/shared-dev-db.git "$checkout/source"
+    source=$checkout/source
+fi
 runtime=$storage/shared-dev-db
 mountpoint -q "$storage" || { echo "Persistent database disk is not mounted" >&2; exit 1; }
 if [[ ! -f $source/compose.yaml || ! -f $source/scripts/configure.py || ! -f $source/Dockerfile ]]; then
-    echo "Mount the current shared-dev-db repository at $source before running setup." >&2
+    echo "The shared-dev-db source at $source is incomplete." >&2
     exit 1
 fi
-# Snapshot runtime files, including uncommitted edits, without copying host
+if [[ -f $HOME/.config/systemd/user/shared-dev-db.service.d/backup.conf ]] &&
+   [[ ! -f $source/compose.backup.yaml || ! -f $source/scripts/backup.sh ]]; then
+    echo "Backups are enabled, but the source does not include the backup runtime files." >&2
+    exit 1
+fi
+if [[ -f $source/compose.backup.yaml || -f $source/scripts/backup.sh ]]; then
+    [[ -f $source/compose.backup.yaml && -f $source/scripts/backup.sh ]] || {
+        echo "The shared-dev-db backup runtime files are incomplete." >&2; exit 1;
+    }
+fi
+# Snapshot runtime files without copying source
 # credentials/data/Git metadata. Normal boots need only this persistent copy.
 # Stop before updating files used by ExecStop as well as ExecStart.
 python3 "$source/scripts/configure.py" \
@@ -31,6 +49,10 @@ install -m 0644 "$source/Dockerfile" "$runtime/Dockerfile"
 for script in configure.py create-db.sh setup.sh; do
     install -m 0755 "$source/scripts/$script" "$runtime/scripts/$script"
 done
+if [[ -f $source/compose.backup.yaml ]]; then
+    install -m 0644 "$source/compose.backup.yaml" "$runtime/compose.backup.yaml"
+    install -m 0755 "$source/scripts/backup.sh" "$runtime/scripts/backup.sh"
+fi
 python3 "$runtime/scripts/configure.py" \
     --env-file "$storage/config/shared-dev-db.env" \
     --data-dir "$storage/postgres18" --require-data-dir \

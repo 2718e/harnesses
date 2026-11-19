@@ -1,7 +1,6 @@
 # Agent VM and persistent storage
 
-With Lima, uv, just, and virtiofsd installed on the host, put `harnesses` and
-`shared-dev-db` checkouts beside each other, then run from this directory:
+With Lima, uv, just, and virtiofsd installed on the host, run from this directory:
 
 ```sh
 just setup
@@ -15,8 +14,7 @@ the database service, briefly interrupting connections.
 
 No `mountavm.yaml` is needed for the base VM and database. To add project mounts,
 copy `mountavm.example.yaml` to `mountavm.yaml` and edit the paths before setup.
-A read-only `/projects/shared-dev-db` entry can select another source checkout;
-otherwise the launcher uses the sibling repository. The launcher supplies
+The guest fetches the public shared-dev-db GitHub repository during setup. The launcher supplies
 `/opt/agent-config` from this harness checkout. Keep the harness checkout
 available while the VM runs, since its config mount is live. Do not mount the
 active harness checkout as a writable project; use a separate clone instead.
@@ -43,24 +41,10 @@ install the new global skill; `just sync-config` refreshes Codex configuration
 only. Recreation replaces the guest's primary disk and logins but retains the
 persistent disk. Restart Codex after changing installed skills.
 
-## Use the database
+## Shared database
 
-```sh
-just shell
-shared-db my_project
-# SHARED_DEV_DB_BASE_URL already includes credentials and a trailing slash.
-# Supply a project-specific URL to your application:
-export DATABASE_URL="${SHARED_DEV_DB_BASE_URL}my_project"
-```
-
-`shared-db` creates the named database or reports that it already exists. It
-works from any directory. Database names start with a letter or underscore,
-contain letters, digits or underscores, and are at most 63 characters.
-The base URL is exported in guest login shells without choosing a database
-for every project. For a process that does not read shell profiles, source
-`/mnt/lima-agvm-p/config/connection.env` explicitly. Both this file and
-`shared-dev-db.env` contain credentials and are private to the guest user.
-PostgreSQL listens on guest loopback; its port is not forwarded to the host.
+The VM provides a shared PostgreSQL server. See [shared_dev_db.md](shared_dev_db.md)
+for connecting, refreshing it, backups, and extensions.
 
 ## Remote access
 
@@ -125,25 +109,13 @@ The persistent disk stores:
 - `config/rootless-identity`: guest UID/GID and subordinate ID mapping.
 - `shared-dev-db/`: a snapshot of the source repository's Compose file, Dockerfile and runtime scripts.
 
-Setup copies the current runtime files, including uncommitted edits, without
-copying host credentials, database files, or Git metadata. Normal boots use the
-persistent snapshot and do not need the source database mount. Run `just setup`
-after deliberately changing database runtime code. It preserves settings; edits
-to the source `.env` are unrelated to the VM instance.
+For database updates, migration safeguards, and backups, see
+[shared_dev_db.md](shared_dev_db.md).
 
-An older VM needs `just recreate` to receive these provisioning and service
-changes; setup does not rewrite a saved instance's disk/provisioning definition.
-`just update-mounts` updates only shared directory mounts in a stopped VM, then
+An older VM needs `just recreate` to receive provisioning and service changes;
+setup does not rewrite a saved instance's disk or provisioning definition.
+`just update-mounts` updates shared directory mounts in a stopped VM, then
 `just start` uses them. An identical legacy required mount is accepted.
-
-Existing credentials are preserved. Settings pointing at the older `postgres/`
-path are rejected: review the settings and migrate old data deliberately before
-using `postgres18/`. PostgreSQL major versions cannot use one another's data
-without an upgrade. The earlier manual `postgres18-ready` marker is no longer
-needed. If database files exist without settings or a rootless identity record,
-setup fails instead of inventing new credentials or recursively changing owners.
-A changed rootless mapping also fails. None of these cases automatically deletes
-data.
 
 ## Runtime and troubleshooting
 
@@ -207,17 +179,3 @@ contents. Enroll Tailscale once on the new VM. If the old disk is `agentvm-db`,
 substitute that name in the disk deletion command. If data or the Tailscale
 identity is needed, back it up while the current VM is still running before
 stopping it. Migration is not automated. The legacy `pgdata` disk is untouched.
-
-### Database extensions
-
-The shared-dev-db repository builds its PostgreSQL Alpine image with PostGIS;
-geospatial packages are installed in the container, so no VM packages or VM
-recreation are needed. Setup builds before stopping the current server, then
-preserves its persistent data and credentials. Normal boots reuse the built image.
-After updating both checkouts, rerun `bash /opt/agent-config/bin/setup-shared-dev-db`.
-For a writable guest clone, set `SHARED_DEV_DB_SOURCE=/new-projects/shared-dev-db-postgis`
-when invoking setup. The default remains the mounted checkout.
-
-Extensions are enabled per database: connect to the project database and run
-`CREATE EXTENSION IF NOT EXISTS postgis;`. Availability in the server does not
-enable it in every project database. See shared-dev-db's README for build options.
