@@ -74,3 +74,7 @@ snapshot:
 # Run host-side Python tests.
 test:
     uv run --locked --directory scripts python -m unittest discover -s tests
+
+# Run the slow nested KVM and Docker integration test in the agent VM.
+test-nested:
+    limactl shell agentvm -- /usr/bin/sg kvm -c 'bash /opt/agent-config/bin/nested-vm-smoke'

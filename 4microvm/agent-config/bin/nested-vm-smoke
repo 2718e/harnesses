@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Run inside the outer VM. This owns a dedicated Lima home and leaves its VM stopped.
+set -euo pipefail
+
+export LIMA_HOME="$HOME/.lima-nested-smoke"
+instance=nested-smoke-docker
+marker="$LIMA_HOME/.nested-smoke-owned"
+
+if ! test -r /dev/kvm || ! test -w /dev/kvm; then
+    echo 'KVM is unavailable to this session; verify nested virtualization and reconnect after joining the kvm group.' >&2
+    exit 1
+fi
+if [ -d "$LIMA_HOME" ] && [ ! -f "$marker" ]; then
+    echo "Refusing to use existing Lima home without test ownership marker: $LIMA_HOME" >&2
+    exit 1
+fi
+mkdir -p "$LIMA_HOME"
+touch "$marker"
+exec 9>"$LIMA_HOME/.nested-smoke.lock"
+if ! flock -n 9; then
+    echo 'A nested smoke test is already running.' >&2
+    exit 1
+fi
+
+status=$(limactl list --json | python3 -c 'import json,sys; name=sys.argv[1]; print(next((v["status"] for v in map(json.loads, sys.stdin) if v["name"] == name), "Absent"))' "$instance")
+case "$status" in
+    Absent|Stopped) ;;
+    *) echo "Refusing to use $instance in state $status" >&2; exit 1 ;;
+esac
+
+# Stop on success or failure, including a failed or timed-out start.
+cleanup() {
+    result=$?
+    trap - EXIT
+    if ! limactl stop "$instance"; then
+        echo "Could not stop $instance; check it before stopping the outer VM." >&2
+        [ "$result" -ne 0 ] || result=1
+    fi
+    exit "$result"
+}
+trap cleanup EXIT
+
+if [ "$status" = Absent ]; then
+    limactl start --tty=false --name="$instance" --vm-type=qemu --cpus=2 \
+        --memory=2 --disk=12 --mount-none --containerd=none --timeout=15m template:default
+else
+    limactl start --timeout=15m "$instance"
+fi
+
+pid=$(cat "$LIMA_HOME/$instance/qemu.pid")
+cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline")
+if [[ ! "$cmdline" =~ -machine\ [^[:space:]]*accel=kvm ]]; then
+    echo 'Nested QEMU is not using KVM acceleration.' >&2
+    exit 1
+fi
+echo 'Nested VM is running with KVM acceleration.'
+
+limactl shell "$instance" -- bash -se <<'INNER'
+set -euo pipefail
+if ! command -v docker >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y docker.io
+fi
+sudo systemctl enable --now docker
+sudo env -u DOCKER_HOST docker run --rm alpine:3.21 /bin/sh -c 'echo nested-docker-ok'
+INNER
+echo 'Nested Docker smoke test passed.'

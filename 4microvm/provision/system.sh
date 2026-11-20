@@ -51,8 +51,21 @@ PACKAGES=(
     dbus-user-session
     slirp4netns
     fuse-overlayfs
+    qemu-system-x86
+    qemu-utils
+    ovmf
 )
 apt-get install -y --no-install-recommends "${PACKAGES[@]}"
+
+# The guest can act as a KVM host for nested Lima instances. Existing login
+# sessions must reconnect to acquire the new supplementary group.
+usermod -aG kvm "$AGENT_USER"
+LIMA_TARBALL="lima-$LIMA_VERSION-Linux-x86_64.tar.gz"
+LIMA_TMP_DIR=$(mktemp -d)
+curl -fsSLo "$LIMA_TMP_DIR/$LIMA_TARBALL" "https://github.com/lima-vm/lima/releases/download/v$LIMA_VERSION/$LIMA_TARBALL"
+printf '%s  %s\n' "$LIMA_SHA256" "$LIMA_TMP_DIR/$LIMA_TARBALL" | sha256sum -c -
+tar -xzf "$LIMA_TMP_DIR/$LIMA_TARBALL" -C /usr/local
+rm -rf "$LIMA_TMP_DIR"
 
 if [ -x /usr/bin/fdfind ]; then
     ln -sfn /usr/bin/fdfind /usr/local/bin/fd
