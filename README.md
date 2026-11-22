@@ -1,5 +1,5 @@
-# Agent harness VM
+# Harnesses
 
-`4microvm` is the active project: a Lima VM for coding agents working on explicitly mounted projects. See [the VM setup and usage guide](4microvm/README.md).
+Used to be about me experimenting with agent harnesses
 
-The former dsh project and VM integration have been retired.
+Deprecated now, moved to https://github.com/2718e/homelab.git because sort of evolved into a dev server in vm as well as an agent sandbox.
